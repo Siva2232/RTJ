@@ -1,26 +1,62 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { motion } from 'framer-motion';
 import { selectAllCars, calcTotalCost, calcProfit, fetchCars } from '../store/slices/carSlice';
 import ProfitChart from '../components/charts/ProfitChart';
 import ExpenseChart from '../components/charts/ExpenseChart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
-import { Users, TrendingUp, ShoppingBag, Award } from 'lucide-react';
+import { Users, TrendingUp, ShoppingBag, Award, Download } from 'lucide-react';
+import api from '../services/api';
+
+const PERIODS = [
+  { key: 'weekly',  label: 'Weekly'  },
+  { key: 'monthly', label: 'Monthly' },
+  { key: 'yearly',  label: 'Yearly'  },
+];
+
+function getPeriodStart(period) {
+  const d = new Date();
+  if (period === 'weekly') {
+    d.setDate(d.getDate() - 7);
+    d.setHours(0, 0, 0, 0);
+  } else if (period === 'monthly') {
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+  } else {
+    d.setMonth(0, 1);
+    d.setHours(0, 0, 0, 0);
+  }
+  return d;
+}
 
 export default function Reports() {
   const dispatch = useDispatch();
   const cars = useSelector(selectAllCars);
+  const [period, setPeriod] = useState('monthly');
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     dispatch(fetchCars());
   }, [dispatch]);
 
-  const soldCars = cars.filter((c) => c.status === 'sold');
+  // ─── Period filtering ───
+  const periodStart = getPeriodStart(period);
+
+  const filteredSoldCars = cars.filter(
+    (c) => c.status === 'sold' && c.soldDate && new Date(c.soldDate) >= periodStart
+  );
+
+  const filteredAllCars = cars.filter((c) => {
+    const d = c.purchaseDate || c.createdAt;
+    return d && new Date(d) >= periodStart;
+  });
+
+  // Use period-filtered cars for all calculations below
+  const soldCars = filteredSoldCars;
 
   // ─── Staff Performance Logic ───
-  const { salesTeam, purchaseTeam } = cars.reduce((acc, car) => {
-    // 1. Sales Performance (Only for users who SOLD cars)
-    if (car.status === 'sold' && car.soldBy) {
+  const { salesTeam, purchaseTeam } = filteredAllCars.reduce((acc, car) => {
+    if (car.status === 'sold' && car.soldBy && new Date(car.soldDate) >= periodStart) {
       const seller = car.soldBy.name || 'Unknown';
       if (!acc.salesTeam[seller]) {
         acc.salesTeam[seller] = { name: seller, sales: 0, revenue: 0, profit: 0, incentives: 0 };
@@ -32,7 +68,6 @@ export default function Reports() {
       if (profit > 0) acc.salesTeam[seller].incentives += profit * 0.02;
     }
 
-    // 2. Purchase Performance (Only for users who PURCHASED cars)
     if (car.purchasedBy) {
       const buyer = car.purchasedBy.name || 'Unknown';
       if (!acc.purchaseTeam[buyer]) {
@@ -56,22 +91,66 @@ export default function Reports() {
     sold: c.sellingPrice,
   }));
 
-  const totalInvestment = cars.reduce((s, c) => s + calcTotalCost(c), 0);
+  const totalInvestment = filteredAllCars.reduce((s, c) => s + calcTotalCost(c), 0);
   const totalRevenue = soldCars.reduce((s, c) => s + c.sellingPrice, 0);
-  const totalProfit = soldCars.reduce((s, c) => s + calcProfit(car => calcProfit(car)), 0); // Corrected reduce
   const totalProfitFix = soldCars.reduce((s, c) => s + calcProfit(c), 0);
   const avgProfitPerCar = soldCars.length ? Math.round(totalProfitFix / soldCars.length) : 0;
 
+  // ─── Download Report ───
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const res = await api.get(`/cars/export/report?period=${period}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${period.charAt(0).toUpperCase() + period.slice(1)}-Report-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-slate-900 text-2xl font-bold">Business Intelligence</h2>
           <p className="text-slate-500 text-sm mt-0.5">Advanced performance analytics & staff tracking</p>
         </div>
-        <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm">
-          <Users size={18} className="text-blue-600" />
-          <span className="text-sm font-bold text-slate-700">{salesData.length + purchaseData.length} Active Staff</span>
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Period filter */}
+          <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+            {PERIODS.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setPeriod(key)}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                  period === key
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* Download Report */}
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl shadow-sm transition-all"
+          >
+            <Download size={15} />
+            {downloading ? 'Generating…' : 'Download Report'}
+          </button>
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm">
+            <Users size={18} className="text-blue-600" />
+            <span className="text-sm font-bold text-slate-700">{salesData.length + purchaseData.length} Active Staff</span>
+          </div>
         </div>
       </div>
 

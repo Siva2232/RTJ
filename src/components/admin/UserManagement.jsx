@@ -16,7 +16,8 @@ import {
   User,
   Key,
   Target,
-  ShoppingBag 
+  ShoppingBag,
+  ArrowRight
 } from 'lucide-react';
 import { fetchUsersThunk, registerUserThunk, updateUserThunk } from '../../store/slices/authSlice';
 import Button from '../ui/Button';
@@ -24,9 +25,9 @@ import Modal from '../ui/Modal';
 import toast from 'react-hot-toast';
 
 const ROLE_COLORS = {
-  admin: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-  sales: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  purchase: 'bg-amber-100 text-amber-700 border-amber-200'
+  admin: 'bg-indigo-50 text-indigo-700 border-indigo-100',
+  sales: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  purchase: 'bg-amber-50 text-amber-700 border-amber-100'
 };
 
 const ROLE_LABELS = {
@@ -70,7 +71,7 @@ export default function UserManagement() {
         name: user.name,
         email: user.email,
         role: user.role,
-        password: '' // Don't show password
+        password: '' 
       });
     } else {
       setEditingUser(null);
@@ -85,14 +86,12 @@ export default function UserManagement() {
 
     let res;
     if (editingUser) {
-      // Update existing
       res = await dispatch(updateUserThunk({ 
         id: editingUser._id, 
         name: form.name, 
         role: form.role 
       }));
     } else {
-      // Register new
       if (!form.password) {
         toast.error('Password is required for new users');
         setLoading(false);
@@ -128,228 +127,243 @@ export default function UserManagement() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-6xl mx-auto space-y-8 p-2">
       {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h3 className="text-slate-900 text-lg font-black uppercase tracking-tight flex items-center gap-2">
-            <Users className="text-indigo-600" size={20} />
-            Team Management
-          </h3>
-          <p className="text-slate-500 text-xs font-medium mt-1 uppercase tracking-wider">Configure access for sales & purchase teams</p>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2.5 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-200">
+                <Users className="text-white" size={24} />
+            </div>
+            <h3 className="text-slate-900 text-3xl font-black tracking-tight">
+              Team Members
+            </h3>
+          </div>
+          <p className="text-slate-500 text-sm font-medium">
+            Manage your organization's workforce and permission levels
+          </p>
         </div>
         <Button 
           variant="primary" 
           onClick={() => handleOpenModal()}
-          className="bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-100 flex items-center gap-2 px-6"
+          className="bg-slate-900 hover:bg-black text-white shadow-xl flex items-center gap-2 px-8 py-4 rounded-2xl transition-all hover:scale-[1.02] active:scale-95"
         >
           <UserPlus size={18} />
-          Add Team Member
+          <span className="font-bold tracking-wide">Add New Member</span>
         </Button>
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {[
           { label: 'Total Staff', count: users.length, icon: Users, color: 'text-slate-600 bg-slate-100' },
-          { label: 'Active', count: users.filter(u => u.isActive).length, icon: CheckCircle, color: 'text-emerald-600 bg-emerald-50' },
-          { label: 'Sales Team', count: users.filter(u => u.role === 'sales').length, icon: Target, color: 'text-indigo-600 bg-indigo-50' },
-          { label: 'Purchase', count: users.filter(u => u.role === 'purchase').length, icon: ShoppingBag, color: 'text-amber-600 bg-amber-50' }
+          { label: 'Active Access', count: users.filter(u => u.isActive).length, icon: CheckCircle, color: 'text-emerald-600 bg-emerald-50' },
+          { label: 'Sales Leads', count: users.filter(u => u.role === 'sales').length, icon: Target, color: 'text-indigo-600 bg-indigo-50' },
+          { label: 'Inventory Mgrs', count: users.filter(u => u.role === 'purchase').length, icon: ShoppingBag, color: 'text-amber-600 bg-amber-50' }
         ].map((stat, i) => (
-          <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stat.color}`}>
-              <stat.icon size={20} />
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1 }}
+            key={i} 
+            className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-5"
+          >
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${stat.color}`}>
+              <stat.icon size={28} />
             </div>
             <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{stat.label}</p>
-              <p className="text-xl font-black text-slate-800 leading-none">{stat.count}</p>
+              <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-0.5">{stat.label}</p>
+              <p className="text-2xl font-black text-slate-900 leading-none">{stat.count}</p>
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
 
       {/* Filter Bar */}
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+      <div className="relative group">
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
         <input 
           type="text"
-          placeholder="Search by name or email..."
+          placeholder="Search teammates by name, email or role..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-100 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm outline-none font-medium"
+          className="w-full pl-14 pr-6 py-5 bg-white border border-slate-200 rounded-[1.5rem] text-base focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all shadow-sm outline-none font-medium placeholder:text-slate-400"
         />
       </div>
 
-      {/* User Table */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden">
+      {/* User Table Card */}
+      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-2xl shadow-slate-200/50 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/50">
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Member Info</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Role & Status</th>
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Joined Date</th>
-                <th className="px-6 py-4 text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Actions</th>
+              <tr className="bg-slate-50/80 backdrop-blur-sm">
+                <th className="px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Team Member</th>
+                <th className="px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Role & Permissions</th>
+                <th className="px-8 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">Registration</th>
+                <th className="px-8 py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-widest">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {filteredUsers.map((user) => (
                 <tr key={user._id} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="px-6 py-4">
+                  <td className="px-8 py-6">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white text-sm font-black shadow-lg shadow-indigo-100">
-                        {user.name[0].toUpperCase()}
+                      <div className="relative">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-slate-800 to-slate-600 flex items-center justify-center text-white text-lg font-black shadow-inner">
+                          {user.name[0].toUpperCase()}
+                        </div>
+                        <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${user.isActive ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                       </div>
                       <div>
-                        <p className="text-slate-900 font-bold text-sm tracking-tight">{user.name}</p>
-                        <p className="text-slate-400 text-xs font-medium">{user.email}</p>
+                        <p className="text-slate-900 font-bold text-base tracking-tight">{user.name}</p>
+                        <p className="text-slate-400 text-sm font-medium">{user.email}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-8 py-6">
                     <div className="flex flex-col gap-2">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border w-fit ${ROLE_COLORS[user.role]}`}>
-                        <Shield size={10} className="mr-1.5" />
+                      <span className={`inline-flex items-center px-3 py-1 rounded-xl text-[11px] font-bold uppercase tracking-wider border w-fit shadow-sm ${ROLE_COLORS[user.role]}`}>
+                        <Shield size={12} className="mr-2" />
                         {ROLE_LABELS[user.role]}
-                      </span>
-                      <span className={`flex items-center gap-1.5 text-[10px] font-black uppercase tracking-tighter ${user.isActive ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {user.isActive ? <CheckCircle size={10} /> : <XCircle size={10} />}
-                        {user.isActive ? 'Authorized' : 'Suspended'}
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <p className="text-slate-500 text-xs font-bold uppercase tracking-tighter">
-                      {new Date(user.createdAt).toLocaleDateString()}
+                  <td className="px-8 py-6">
+                    <p className="text-slate-500 text-sm font-semibold italic">
+                      {new Date(user.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </p>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-center gap-2">
+                  <td className="px-8 py-6">
+                    <div className="flex items-center justify-center gap-3">
                       <button 
                         onClick={() => handleOpenModal(user)}
-                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-indigo-100"
-                        title="Edit Member"
+                        className="p-3 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-all border border-transparent hover:border-indigo-100 shadow-sm active:scale-90"
+                        title="Edit Settings"
                       >
-                        <Edit2 size={16} />
+                        <Edit2 size={18} />
                       </button>
                       <button 
                         onClick={() => toggleUserStatus(user)}
-                        className={`p-2 rounded-xl transition-all shadow-sm border border-transparent ${
+                        className={`p-3 rounded-2xl transition-all border border-transparent shadow-sm active:scale-90 ${
                           user.isActive 
                             ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-100' 
                             : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 hover:border-emerald-100'
                         }`}
-                        title={user.isActive ? 'Suspend Access' : 'Restore Access'}
+                        title={user.isActive ? 'Revoke Access' : 'Grant Access'}
                       >
-                        <Power size={16} />
+                        <Power size={18} />
                       </button>
                     </div>
                   </td>
                 </tr>
               ))}
-              {filteredUsers.length === 0 && (
-                <tr>
-                  <td colSpan="4" className="px-6 py-12 text-center">
-                    <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-3 text-slate-300">
-                      <Users size={24} />
-                    </div>
-                    <p className="text-slate-400 text-xs font-black uppercase tracking-widest">No team members found</p>
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
+          
+          {filteredUsers.length === 0 && (
+            <div className="py-20 text-center bg-slate-50/30">
+              <div className="w-20 h-20 bg-white rounded-3xl shadow-sm border border-slate-100 flex items-center justify-center mx-auto mb-4 text-slate-200">
+                <Users size={36} />
+              </div>
+              <h4 className="text-slate-900 font-bold text-lg">No Results Found</h4>
+              <p className="text-slate-400 text-sm max-w-xs mx-auto">Try adjusting your search filters to find the member you're looking for.</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Add/Edit Modal */}
+      {/* Improved Modal Content */}
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)}
-        title={editingUser ? "Configure Member" : "New Team Member"}
+        title={editingUser ? "Update Permissions" : "Add New Teammate"}
         size="md"
       >
-        <form onSubmit={handleSubmit} className="p-2 space-y-6">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Display Name</label>
-              <div className="relative">
-                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input 
-                  required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="e.g. Jaison"
-                  className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium text-slate-800 transition-all"
-                />
-              </div>
-            </div>
+        <form onSubmit={handleSubmit} className="p-4 space-y-8">
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 gap-5">
+                <div>
+                    <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2.5 ml-1">Full Name</label>
+                    <div className="relative group">
+                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                        <input 
+                        required
+                        value={form.name}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-[1.25rem] text-sm focus:ring-4 focus:ring-indigo-500/5 focus:bg-white focus:border-indigo-500 outline-none font-bold text-slate-800 transition-all placeholder:text-slate-300"
+                        placeholder="John Doe"
+                        />
+                    </div>
+                </div>
 
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Email Address</label>
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input 
-                  required
-                  type="email"
-                  disabled={!!editingUser}
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="jaison@company.com"
-                  className={`w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium text-slate-800 transition-all ${editingUser ? 'opacity-50 cursor-not-allowed' : ''}`}
-                />
-              </div>
+                <div>
+                    <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2.5 ml-1">Email Workspace</label>
+                    <div className="relative group">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors" size={18} />
+                        <input 
+                        required
+                        type="email"
+                        disabled={!!editingUser}
+                        value={form.email}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                        className={`w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-[1.25rem] text-sm focus:ring-4 focus:ring-indigo-500/5 focus:bg-white focus:border-indigo-500 outline-none font-bold text-slate-800 transition-all ${editingUser ? 'opacity-60 grayscale cursor-not-allowed' : ''}`}
+                        placeholder="john@company.com"
+                        />
+                    </div>
+                </div>
             </div>
 
             {!editingUser && (
               <div>
-                <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Access Password</label>
-                <div className="relative">
-                  <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2.5 ml-1">Secure Password</label>
+                <div className="relative group">
+                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors" size={18} />
                   <input 
                     required
                     type="password"
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    placeholder="Min. 6 characters"
-                    className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium text-slate-800 transition-all"
+                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-[1.25rem] text-sm focus:ring-4 focus:ring-indigo-500/5 focus:bg-white focus:border-indigo-500 outline-none font-bold text-slate-800 transition-all"
+                    placeholder="••••••••"
                   />
                 </div>
               </div>
             )}
 
             <div>
-              <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">Assigned Role</label>
-              <div className="grid grid-cols-2 gap-3">
+              <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-3 ml-1">Organization Role</label>
+              <div className="grid grid-cols-2 gap-4">
                 {[
-                  { id: 'sales', label: 'Sales Team', icon: Target },
-                  { id: 'purchase', label: 'Purchase Team', icon: ShoppingBag }
+                  { id: 'sales', label: 'Sales Force', icon: Target, desc: 'Lead handling' },
+                  { id: 'purchase', label: 'Inventory', icon: ShoppingBag, desc: 'Stock buying' }
                 ].map((role) => (
                   <button
                     key={role.id}
                     type="button"
                     onClick={() => setForm({ ...form, role: role.id })}
-                    className={`flex items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all group ${
+                    className={`flex flex-col items-start p-5 rounded-[1.5rem] border-2 transition-all text-left group ${
                       form.role === role.id 
-                        ? 'bg-indigo-50 border-indigo-600 text-indigo-700' 
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-100' 
                         : 'bg-white border-slate-100 text-slate-500 hover:border-slate-200'
                     }`}
                   >
-                    <role.icon size={18} className={form.role === role.id ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-500'} />
-                    <span className="text-xs font-black uppercase tracking-tight">{role.label}</span>
+                    <role.icon size={22} className={`mb-3 ${form.role === role.id ? 'text-white' : 'text-slate-400'}`} />
+                    <span className="text-xs font-black uppercase tracking-tighter mb-1">{role.label}</span>
+                    <span className={`text-[10px] ${form.role === role.id ? 'text-indigo-100' : 'text-slate-400'}`}>{role.desc}</span>
                   </button>
                 ))}
               </div>
             </div>
           </div>
 
-          <div className="pt-2">
+          <div className="pt-4">
             <Button 
               type="submit" 
               loading={loading}
-              className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 text-sm font-black uppercase tracking-[0.1em]"
+              className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[1.25rem] shadow-2xl shadow-indigo-200 text-sm font-black uppercase tracking-widest flex items-center justify-center gap-3"
             >
-              {editingUser ? "Update Access" : "Launch Credentials"}
+              <span>{editingUser ? "Save Configuration" : "Grant Access Now"}</span>
+              {!loading && <ArrowRight size={18} />}
             </Button>
           </div>
         </form>
