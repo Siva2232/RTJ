@@ -63,7 +63,7 @@ export default function Sidebar() {
                 transition={{ duration: 0.2 }}
                 className="flex flex-col min-w-0"
               >
-                <span className="text-white font-bold text-sm leading-tight truncate">RTJ Motors</span>
+                <span className="text-white font-bold text-sm leading-tight truncate">VTJ Motors</span>
                 <span className="text-slate-400 text-xs leading-tight">Car Manager</span>
               </motion.div>
             )}

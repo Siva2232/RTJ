@@ -46,7 +46,7 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-600 rounded-2xl mb-4 shadow-lg shadow-blue-600/40">
             <Car size={28} className="text-white" />
           </div>
-          <h1 className="text-white text-2xl font-bold">RTJ Motors</h1>
+          <h1 className="text-white text-2xl font-bold">VTJ Motors</h1>
           <p className="text-slate-400 text-sm mt-1">Second-Hand Car Management System</p>
         </motion.div>
 
