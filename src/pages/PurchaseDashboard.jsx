@@ -191,6 +191,18 @@ export default function PurchaseDashboard() {
                       <span>{car.registrationNumber}</span>
                       <span className="w-1 h-1 bg-slate-200 rounded-full" />
                       <span>{car.ownerType} Owner</span>
+                      {car.paymentMode && (
+                        <>
+                          <span className="w-1 h-1 bg-slate-200 rounded-full" />
+                          <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded uppercase tracking-widest">{car.paymentMode}</span>
+                        </>
+                      )}
+                      {car.utrNumber && (
+                        <>
+                          <span className="w-1 h-1 bg-slate-200 rounded-full" />
+                          <span className="text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded tracking-widest">UTR: {car.utrNumber}</span>
+                        </>
+                      )}
                     </div>
                     {car.status === 'sold' && (
                       <div className="inline-flex items-center gap-1.5 mt-2 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-black uppercase">

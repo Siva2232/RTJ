@@ -9,10 +9,19 @@ import { Upload, X, Image as ImageIcon, Plus, DollarSign } from "lucide-react";
 const BRANDS = ["Maruti Suzuki", "Hyundai", "Honda", "Toyota", "Tata", "Mahindra", "Kia", "Volkswagen", "Skoda", "Ford", "Renault", "Nissan", "MG", "Jeep", "Other"];
 const FUEL_TYPES = ["petrol", "diesel", "electric", "cng", "hybrid"];
 const OWNER_TYPES = ["1st", "2nd", "3rd", "4th+"];
+const PAYMENT_MODES = [
+  { label: "Cash", value: "cash" },
+  { label: "GPay", value: "gpay" },
+  { label: "NEFT", value: "neft" },
+  { label: "Other", value: "other" }
+];
 
 const defaultForm = {
   brand: "", model: "", year: new Date().getFullYear(), chassisNumber: "", registrationNumber: "",
   ownerType: "1st", fuelType: "petrol", mileage: "", purchasePrice: "",
+  paymentMode: "cash", utrNumber: "",
+  paymentDate: new Date().toISOString().split('T')[0],
+  paymentDescription: "",
 };
 
 export default function CarForm({ isOpen, onClose }) {
@@ -167,9 +176,27 @@ export default function CarForm({ isOpen, onClose }) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Purchase Price (?) <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Purchase Price (₹) <span className="text-red-500">*</span></label>
             <input name="purchasePrice" type="number" value={form.purchasePrice} onChange={handleChange} required placeholder="e.g. 450000" className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl" />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Payment Mode</label>
+            <select name="paymentMode" value={form.paymentMode} onChange={handleChange} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl">
+              {PAYMENT_MODES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">UTR Number (GPay/NEFT)</label>
+            <input name="utrNumber" value={form.utrNumber} onChange={handleChange} placeholder="e.g. 123456789012" className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label>
+            <input name="paymentDate" type="date" value={form.paymentDate} onChange={handleChange} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Payment Description (Optional)</label>
+          <input name="paymentDescription" value={form.paymentDescription} onChange={handleChange} placeholder="e.g. Paid to dealer directly" className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl" />
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Chassis No.</label>

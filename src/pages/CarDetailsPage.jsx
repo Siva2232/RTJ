@@ -182,6 +182,34 @@ export default function CarDetailsPage() {
           ))}
         </div>
 
+        {/* Payment Info */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-3 bg-emerald-600 text-white rounded-2xl"><DollarSign size={20} /></div>
+            <h3 className="font-black text-lg">Payment Details</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Method</p>
+              <p className="text-slate-900 font-black text-lg mt-1 uppercase">{car.paymentMode || 'Cash'}</p>
+            </div>
+            <div>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Transaction Ref (UTR)</p>
+              <p className="text-slate-900 font-black text-lg mt-1">{car.utrNumber || '—'}</p>
+            </div>
+            <div>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Payment Date</p>
+              <p className="text-slate-900 font-black text-lg mt-1">
+                {car.paymentDate ? new Date(car.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Notes</p>
+              <p className="text-slate-600 font-medium text-sm mt-1">{car.paymentDescription || 'No additional notes'}</p>
+            </div>
+          </div>
+        </div>
+
         {/* Financial Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           {/* Base Purchase */}

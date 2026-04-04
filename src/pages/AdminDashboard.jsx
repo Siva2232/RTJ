@@ -121,6 +121,14 @@ export default function AdminDashboard() {
                     <p className="text-slate-700 text-sm font-semibold">{car.saleApproval?.customerDetails?.name || "Walk-in"}</p>
                     <p className="text-slate-500 text-xs mt-0.5">{car.saleApproval?.customerDetails?.phone}</p>
                   </div>
+                  <div className="flex-1 min-w-40 border-l border-slate-200 pl-4 ml-2">
+                    <p className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-1">Purchase Payment</p>
+                    <p className="text-blue-700 text-xs font-bold uppercase">{car.paymentMode || 'Cash'} {car.utrNumber ? `• ${car.utrNumber}` : ''}</p>
+                    <p className="text-slate-500 text-[10px] font-medium mt-0.5">
+                      {car.paymentDate ? new Date(car.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'} 
+                      {car.paymentDescription ? ` • ${car.paymentDescription}` : ''}
+                    </p>
+                  </div>
                   <div className="flex items-center gap-2">
                     <Button variant="primary" size="sm" className="bg-amber-600 hover:bg-amber-700 text-white border-none shadow-amber-200" onClick={() => setApprovalModal({ isOpen: true, car })}>Review Request</Button>
                   </div>

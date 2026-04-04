@@ -27,6 +27,10 @@ const STATUS_FILTERS = [
   { label: 'In Repair', value: 'repair' },
   { label: 'Ready', value: 'ready' },
   { label: 'Sold', value: 'sold' },
+  { label: '1M+', value: '1m' },
+  { label: '3M+', value: '3m' },
+  { label: '6M+', value: '6m' },
+  { label: 'Junk (1Y+)', value: 'junk' },
 ];
 
 const SORT_OPTIONS = [

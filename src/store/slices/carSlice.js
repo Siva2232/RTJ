@@ -190,9 +190,25 @@ export const selectFilteredCars = (state) => {
   let cars = [...state.cars.list];
   const { filterStatus, searchQuery, sortBy } = state.cars;
 
-  if (filterStatus !== 'all') {
+  if (filterStatus === 'junk') {
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    cars = cars.filter((c) => 
+      c.status !== 'sold' && 
+      new Date(c.purchaseDate || c.createdAt) <= oneYearAgo
+    );
+  } else if (filterStatus === '1m' || filterStatus === '3m' || filterStatus === '6m') {
+    const months = parseInt(filterStatus);
+    const dateLimit = new Date();
+    dateLimit.setMonth(dateLimit.getMonth() - months);
+    cars = cars.filter((c) => 
+      c.status !== 'sold' && 
+      new Date(c.purchaseDate || c.createdAt) <= dateLimit
+    );
+  } else if (filterStatus !== 'all') {
     cars = cars.filter((c) => c.status === filterStatus);
   }
+  
   if (searchQuery.trim()) {
     const q = searchQuery.toLowerCase();
     cars = cars.filter(
