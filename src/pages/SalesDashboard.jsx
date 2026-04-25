@@ -91,14 +91,14 @@ export default function SalesDashboard() {
             Manage inventory pipeline, record repairs, and close vehicle sales
           </p>
         </div>
-        <Button
+        {/* <Button
           variant="primary"
           className="rounded-2xl shadow-lg shadow-blue-900/10 h-11 md:h-12 px-5 md:px-6 w-full sm:w-auto"
           leftIcon={<Plus size={16} />}
           onClick={() => setShowCarForm(true)}
         >
           Add New Car
-        </Button>
+        </Button> */}
       </div>
 
       {/* Sale Notification Banners */}
