@@ -1,6 +1,6 @@
 ﻿import { useState, useRef } from 'react';
 import { useDispatch } from 'react-redux';
-import { markReadyThunk } from '../../store/slices/carSlice';
+import { markReadyThunk, fetchCarById } from '../../store/slices/carSlice';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import { Camera, Plus, X, Receipt, IndianRupee, ImageIcon, Trash2 } from 'lucide-react';
@@ -13,6 +13,7 @@ export default function MarkReadyForm({ isOpen, onClose, car }) {
   const [carImagePreview, setCarImagePreview] = useState(null);
   const [bills, setBills] = useState([]); // [{ id, file, name, preview }]
   const [repairTotal, setRepairTotal] = useState('');
+  const [repairDescription, setRepairDescription] = useState('');
   const [loading, setLoading] = useState(false);
 
   const carImgRef = useRef(null);
@@ -23,6 +24,7 @@ export default function MarkReadyForm({ isOpen, onClose, car }) {
     setCarImagePreview(null);
     setBills([]);
     setRepairTotal('');
+    setRepairDescription('');
     setLoading(false);
   };
 
@@ -60,16 +62,25 @@ export default function MarkReadyForm({ isOpen, onClose, car }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!repairTotal) {
+      toast.error('Please enter total repair amount');
+      return;
+    }
+    
     setLoading(true);
 
     const formData = new FormData();
     if (carImageFile) formData.append('carImage', carImageFile);
     bills.forEach((b) => formData.append('bills', b.file));
-    if (repairTotal) formData.append('repairTotalAmount', repairTotal);
+    formData.append('repairTotalAmount', repairTotal);
+    if (repairDescription) formData.append('repairDescription', repairDescription);
 
     const result = await dispatch(markReadyThunk({ carId: car._id, formData }));
     setLoading(false);
     if (markReadyThunk.fulfilled.match(result)) {
+      // Refetch the car data to get the latest updates in real-time
+      await dispatch(fetchCarById(car._id));
       toast.success(`${car.brand} ${car.model} marked as ready to sell!`);
       resetForm();
       onClose();
@@ -206,10 +217,25 @@ export default function MarkReadyForm({ isOpen, onClose, car }) {
               className="w-full pl-8 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
           </div>
-          <p className="text-xs text-slate-400 mt-1">Summary of all repair work done on this car</p>
+          <p className="text-xs text-slate-400 mt-1">Total amount spent on repair and maintenance</p>
         </div>
 
-        {/* â”€â”€ Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* Repair Description */}
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">
+            Summary of Repair Work
+          </label>
+          <textarea
+            value={repairDescription}
+            onChange={(e) => setRepairDescription(e.target.value)}
+            placeholder="e.g., Engine overhaul, paint job, new tires, AC service, etc."
+            rows="3"
+            className="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white resize-none"
+          />
+          <p className="text-xs text-slate-400 mt-1">Describe the repair work done on this car (optional)</p>
+        </div>
+
+        {/* Actions */}
         <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
           <Button type="button" variant="ghost" className="flex-1" onClick={handleClose}>Cancel</Button>
           <Button type="submit" variant="primary" className="flex-1" loading={loading}>

@@ -213,7 +213,7 @@ export default function SalesDashboard() {
                       View
                     </Button>
 
-                    {car.status === 'repair' && (
+                    {/* {car.status === 'repair' && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -222,7 +222,7 @@ export default function SalesDashboard() {
                       >
                         Repair Cost
                       </Button>
-                    )}
+                    )} */}
 
                     {car.status === 'purchased' && (
                       <Button
