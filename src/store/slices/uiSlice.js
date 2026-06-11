@@ -3,7 +3,7 @@ import { createSlice } from '@reduxjs/toolkit';
 const uiSlice = createSlice({
   name: 'ui',
   initialState: {
-    sidebarCollapsed: false,
+    sidebarCollapsed: typeof window !== 'undefined' ? window.innerWidth < 1024 : false,
     activeModal: null, // 'addCar' | 'addPurchaseExpense' | 'addRepairExpense' | 'sellCar' | null
     modalCarId: null,
     loading: false,

@@ -21,6 +21,24 @@ export const loginThunk = createAsyncThunk('auth/login', async ({ email, passwor
   }
 });
 
+export const fetchProfileThunk = createAsyncThunk('auth/fetchProfile', async (_, { rejectWithValue }) => {
+  try {
+    const { data } = await api.get('/auth/me');
+    return data.data.user;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to fetch profile');
+  }
+});
+
+export const updateProfileThunk = createAsyncThunk('auth/updateProfile', async (formData, { rejectWithValue }) => {
+  try {
+    const { data } = await api.patch('/auth/profile', formData);
+    return data.data.user;
+  } catch (err) {
+    return rejectWithValue(err.response?.data?.message || 'Failed to update profile');
+  }
+});
+
 // ─── Slice ────────────────────────────────────────────────────────────────────
 
 const authSlice = createSlice({
@@ -30,6 +48,7 @@ const authSlice = createSlice({
     token: localStorage.getItem('carapp_token') || null,
     isAuthenticated: !!(localStorage.getItem('carapp_token') && getStored('carapp_user', null)),
     loading: false,
+    profileUpdating: false,
     error: null,
   },
   reducers: {
@@ -49,6 +68,10 @@ const authSlice = createSlice({
       localStorage.removeItem('carapp_token');
       localStorage.removeItem('carapp_user');
     },
+    setUser(state, action) {
+      state.user = action.payload;
+      localStorage.setItem('carapp_user', JSON.stringify(action.payload));
+    },
   },
   extraReducers: (builder) => {
     builder.addCase(loginThunk.pending, (state) => {
@@ -66,6 +89,23 @@ const authSlice = createSlice({
     });
     builder.addCase(loginThunk.rejected, (state, { payload }) => {
       state.loading = false;
+      state.error = payload;
+    });
+    builder.addCase(fetchProfileThunk.fulfilled, (state, { payload }) => {
+      state.user = { ...state.user, ...payload };
+      localStorage.setItem('carapp_user', JSON.stringify(state.user));
+    });
+    builder.addCase(updateProfileThunk.pending, (state) => {
+      state.profileUpdating = true;
+      state.error = null;
+    });
+    builder.addCase(updateProfileThunk.fulfilled, (state, { payload }) => {
+      state.profileUpdating = false;
+      state.user = { ...state.user, ...payload };
+      localStorage.setItem('carapp_user', JSON.stringify(state.user));
+    });
+    builder.addCase(updateProfileThunk.rejected, (state, { payload }) => {
+      state.profileUpdating = false;
       state.error = payload;
     });
   },
@@ -98,5 +138,5 @@ export const updateUserThunk = createAsyncThunk('auth/updateUser', async ({ id, 
   }
 });
 
-export const { loginSuccess, logoutUser } = authSlice.actions;
+export const { loginSuccess, logoutUser, setUser } = authSlice.actions;
 export default authSlice.reducer;

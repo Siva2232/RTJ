@@ -1,9 +1,10 @@
 import UserManagement from '../components/admin/UserManagement';
+import { DashboardPage } from '../components/dashboard/DashboardUI';
 
 export default function TeamManagementPage() {
   return (
-    <div className="p-6">
+    <DashboardPage>
       <UserManagement />
-    </div>
+    </DashboardPage>
   );
 }

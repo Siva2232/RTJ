@@ -1,14 +1,21 @@
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
-import { Car, Fuel, Calendar, Gauge, ArrowRight, IndianRupee, MapPin } from 'lucide-react';
+import { Car, Fuel, Calendar, Gauge, ArrowRight, IndianRupee, MapPin, UserCheck } from 'lucide-react';
 import { StatusBadge, ProfitBadge } from '../ui/Badge';
 import { calcTotalCost, calcProfit } from '../../store/slices/carSlice';
 import { getImageUrl } from '../../utils/helper';
 
 export default function CarCard({ car }) {
   const navigate = useNavigate();
+  const { user } = useSelector((s) => s.auth);
   const totalCost = calcTotalCost(car);
   const profit = car.status === 'sold' ? calcProfit(car) : null;
+  const isAdmin = user?.role === 'admin';
+  const purchaserName = car.purchasedBy?.name || null;
+  const purchaserRole = car.purchasedBy?.role;
+  const purchaserInitial = purchaserName?.charAt(0)?.toUpperCase() || '?';
+  const sellerCustomer = car.purchaseCustomerDetails;
 
   return (
     <motion.div
@@ -124,6 +131,44 @@ export default function CarCard({ car }) {
             )}
           </div>
         </div>
+
+        {isAdmin && (purchaserName || sellerCustomer?.name) && (
+          <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+            {purchaserName && (
+              <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-slate-50 border border-slate-100">
+                <div className="w-7 h-7 rounded-full bg-blue-600 text-white text-[10px] font-black flex items-center justify-center flex-shrink-0">
+                  {purchaserInitial}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                    <UserCheck size={9} />
+                    Purchased by
+                  </p>
+                  <p className="text-xs font-bold text-slate-800 truncate">{purchaserName}</p>
+                </div>
+                {purchaserRole && (
+                  <span className="text-[9px] font-bold capitalize text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded flex-shrink-0">
+                    {purchaserRole}
+                  </span>
+                )}
+              </div>
+            )}
+            {sellerCustomer?.name && (
+              <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-violet-50 border border-violet-100">
+                <div className="w-7 h-7 rounded-full bg-violet-600 text-white text-[10px] font-black flex items-center justify-center flex-shrink-0">
+                  {sellerCustomer.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-violet-500">Seller customer</p>
+                  <p className="text-xs font-bold text-slate-800 truncate">{sellerCustomer.name}</p>
+                  {sellerCustomer.phone && (
+                    <p className="text-[10px] text-violet-700 font-medium">{sellerCustomer.phone}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       
       {/* Hover Line Decoration */}

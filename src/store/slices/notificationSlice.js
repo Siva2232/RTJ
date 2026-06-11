@@ -1,6 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
 
+const STALE_MS = 20_000;
+
 export const fetchNotifications = createAsyncThunk(
   'notifications/fetchAll',
   async (_, { rejectWithValue }) => {
@@ -10,6 +12,16 @@ export const fetchNotifications = createAsyncThunk(
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || 'Failed to fetch notifications');
     }
+  },
+  {
+    condition: (options = {}, { getState }) => {
+      if (options?.force) return true;
+      const { notifications } = getState();
+      if (notifications.lastFetchedAt && Date.now() - notifications.lastFetchedAt < STALE_MS) {
+        return false;
+      }
+      return true;
+    },
   }
 );
 
@@ -43,40 +55,42 @@ const notificationSlice = createSlice({
     list: [],
     loading: false,
     error: null,
-    unreadCount: 0
+    unreadCount: 0,
+    lastFetchedAt: null,
   },
   reducers: {
     addNotification: (state, action) => {
       state.list.unshift(action.payload);
       state.unreadCount += 1;
-    }
+    },
   },
   extraReducers: (builder) => {
     builder
       .addCase(fetchNotifications.pending, (state) => {
-        state.loading = true;
+        if (state.list.length === 0) state.loading = true;
       })
       .addCase(fetchNotifications.fulfilled, (state, action) => {
         state.loading = false;
         state.list = action.payload;
-        state.unreadCount = action.payload.filter(n => !n.isRead).length;
+        state.unreadCount = action.payload.filter((n) => !n.isRead).length;
+        state.lastFetchedAt = Date.now();
       })
       .addCase(fetchNotifications.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
       .addCase(markRead.fulfilled, (state, action) => {
-        const index = state.list.findIndex(n => n._id === action.payload._id);
+        const index = state.list.findIndex((n) => n._id === action.payload._id);
         if (index !== -1 && !state.list[index].isRead) {
           state.list[index] = action.payload;
           state.unreadCount = Math.max(0, state.unreadCount - 1);
         }
       })
       .addCase(markAllAsRead.fulfilled, (state) => {
-        state.list = state.list.map(n => ({ ...n, isRead: true }));
+        state.list = state.list.map((n) => ({ ...n, isRead: true }));
         state.unreadCount = 0;
       });
-  }
+  },
 });
 
 export const { addNotification } = notificationSlice.actions;

@@ -1,190 +1,208 @@
+import { memo, useEffect, useCallback, useMemo } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Car, ShoppingCart, TrendingUp, BarChart3,
-  ChevronRight, Zap, ShieldCheck,Users 
+  PanelLeftClose, PanelLeftOpen, Users, X, LogOut, Zap,
 } from 'lucide-react';
 import { logoutUser } from '../../store/slices/authSlice';
-import { toggleSidebar } from '../../store/slices/uiSlice';
+import { toggleSidebar, setSidebarCollapsed } from '../../store/slices/uiSlice';
 import toast from 'react-hot-toast';
+import useMediaQuery from '../../hooks/useMediaQuery';
+import UserAvatar from '../ui/UserAvatar';
 
 const NAV_ITEMS = {
   admin: [
-    { label: 'Dashboard', icon: LayoutDashboard, to: '/admin' },
-    { label: 'Inventory', icon: Car, to: '/inventory' },
-    { label: 'Purchase', icon: ShoppingCart, to: '/purchase' },
-    { label: 'Sales', icon: TrendingUp, to: '/sales' },
-    { label: 'Team', icon: Users, to: '/team' },
-    { label: 'Reports', icon: BarChart3, to: '/reports' },
+    { label: 'Dashboard', icon: LayoutDashboard, to: '/admin', color: 'text-sky-400', bg: 'bg-sky-500/20' },
+    { label: 'Inventory', icon: Car, to: '/inventory', color: 'text-emerald-400', bg: 'bg-emerald-500/20' },
+    { label: 'Purchase', icon: ShoppingCart, to: '/purchase', color: 'text-amber-400', bg: 'bg-amber-500/20' },
+    { label: 'Sales', icon: TrendingUp, to: '/sales', color: 'text-rose-400', bg: 'bg-rose-500/20' },
+    { label: 'Team', icon: Users, to: '/team', color: 'text-violet-400', bg: 'bg-violet-500/20' },
+    { label: 'Reports', icon: BarChart3, to: '/reports', color: 'text-cyan-400', bg: 'bg-cyan-500/20' },
   ],
   purchase: [
-    { label: 'Dashboard', icon: LayoutDashboard, to: '/purchase' },
-    { label: 'Inventory', icon: Car, to: '/inventory' },
+    { label: 'Dashboard', icon: LayoutDashboard, to: '/purchase', color: 'text-sky-400', bg: 'bg-sky-500/20' },
+    { label: 'Inventory', icon: Car, to: '/inventory', color: 'text-emerald-400', bg: 'bg-emerald-500/20' },
   ],
   sales: [
-    { label: 'Dashboard', icon: LayoutDashboard, to: '/sales' },
-    { label: 'Inventory', icon: Car, to: '/inventory' },
+    { label: 'Dashboard', icon: LayoutDashboard, to: '/sales', color: 'text-sky-400', bg: 'bg-sky-500/20' },
+    { label: 'Inventory', icon: Car, to: '/inventory', color: 'text-emerald-400', bg: 'bg-emerald-500/20' },
   ],
 };
 
-export default function Sidebar() {
+const ROLE_LABELS = { admin: 'Admin', purchase: 'Purchase', sales: 'Sales' };
+
+const NavItem = memo(function NavItem({ to, label, icon: Icon, color, bg, showLabels, centerIcon, onNavigate }) {
+  return (
+    <NavLink
+      to={to}
+      end={to !== '/inventory'}
+      onClick={onNavigate}
+      title={!showLabels ? label : undefined}
+      className={({ isActive }) =>
+        `flex items-center gap-3 rounded-xl text-[13px] font-medium ${
+          centerIcon ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5'
+        } ${
+          isActive
+            ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+            : 'text-blue-100/70 hover:bg-white/10 hover:text-white'
+        }`
+      }
+    >
+      {({ isActive }) => (
+        <>
+          <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isActive ? 'bg-white/20' : bg}`}>
+            <Icon size={17} className={isActive ? 'text-white' : color} strokeWidth={2} />
+          </span>
+          {showLabels && <span className="truncate">{label}</span>}
+        </>
+      )}
+    </NavLink>
+  );
+});
+
+function Sidebar() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { user } = useSelector((s) => s.auth);
+  const user = useSelector((s) => s.auth.user);
   const collapsed = useSelector((s) => s.ui.sidebarCollapsed);
+  const isMobile = useMediaQuery('(max-width: 1023px)');
 
-  const navItems = NAV_ITEMS[user?.role] || [];
+  const navItems = useMemo(() => NAV_ITEMS[user?.role] || [], [user?.role]);
+  const isDrawerOpen = isMobile && !collapsed;
+  const showLabels = isMobile || !collapsed;
+  const centerIcon = collapsed && !isMobile;
+  const sidebarWidth = isMobile ? 300 : (collapsed ? 76 : 260);
 
-  const handleLogout = () => {
+  useEffect(() => {
+    if (isMobile) dispatch(setSidebarCollapsed(true));
+  }, [isMobile, dispatch]);
+
+  useEffect(() => {
+    if (!isMobile) return undefined;
+    document.body.style.overflow = isDrawerOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [isMobile, isDrawerOpen]);
+
+  const closeDrawer = useCallback(() => {
+    if (isMobile) dispatch(setSidebarCollapsed(true));
+  }, [isMobile, dispatch]);
+
+  const handleLogout = useCallback(() => {
     dispatch(logoutUser());
     toast.success('Logged out successfully');
     navigate('/login');
-  };
+  }, [dispatch, navigate]);
 
-  // Close sidebar when link is clicked on mobile
-  const handleLinkClick = () => {
-    if (window.innerWidth < 1024) {
-      dispatch(toggleSidebar());
-    }
-  };
+  const goProfile = useCallback(() => {
+    navigate('/profile');
+    closeDrawer();
+  }, [navigate, closeDrawer]);
 
   return (
     <>
-      {/* Mobile Overlay */}
-      <AnimatePresence>
-        {!collapsed && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => dispatch(toggleSidebar())}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[55] lg:hidden"
-          />
-        )}
-      </AnimatePresence>
+      {isDrawerOpen && (
+        <div
+          onClick={closeDrawer}
+          className="fixed inset-0 bg-indigo-950/50 z-[55] lg:hidden"
+          aria-hidden
+        />
+      )}
 
-      {/* Sidebar */}
-      <motion.aside
-        animate={{
-          x: collapsed && window.innerWidth < 1024 ? -300 : 0,
-          width: collapsed && window.innerWidth >= 1024 ? 88 : 280,
+      <aside
+        className={`fixed lg:static top-0 left-0 h-[100dvh] z-[60] flex flex-col flex-shrink-0 bg-gradient-to-b from-indigo-950 via-blue-950 to-slate-950 shadow-xl shadow-indigo-950/30 will-change-transform lg:will-change-auto ${
+          isMobile && collapsed ? '-translate-x-full' : 'translate-x-0'
+        }`}
+        style={{
+          width: sidebarWidth,
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          transition: isMobile ? 'transform 0.2s ease-out' : 'width 0.2s ease-out',
         }}
-        transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-        className="fixed lg:static top-0 left-0 h-screen bg-slate-950 border-r border-slate-800/60 flex flex-col z-[60] shadow-2xl overflow-hidden flex-shrink-0"
       >
-        {/* Branding Header */}
-        <div className="flex items-center h-20 px-6 border-b border-slate-800/50 shrink-0">
-          <div className="flex items-center gap-4 min-w-0">
-            <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl blur opacity-25 group-hover:opacity-50 transition" />
-              <div className="relative w-10 h-10 rounded-xl bg-slate-900 border border-white/10 flex items-center justify-center">
-                <Zap size={20} className="text-blue-500" />
-              </div>
+        <div className={`flex items-center h-[4.25rem] shrink-0 border-b border-white/10 ${showLabels ? 'px-5' : 'px-3 justify-center'}`}>
+          <div className={`flex items-center min-w-0 ${showLabels ? 'gap-3 flex-1' : 'justify-center'}`}>
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shrink-0">
+              <Zap size={18} className="text-white" />
             </div>
-
-            <AnimatePresence>
-              {!collapsed && (
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="flex flex-col"
-                >
-                  <span className="text-white font-black text-lg tracking-tight uppercase">VTJ<span className="text-blue-500">Motors</span></span>
-                  <span className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em]">Enterprise Hub</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {showLabels && (
+              <div className="overflow-hidden whitespace-nowrap">
+                <p className="text-[15px] font-bold text-white leading-none">
+                  VTJ<span className="text-blue-400">Motors</span>
+                </p>
+                <p className="text-[11px] text-blue-300/70 mt-1">Dealer Management</p>
+              </div>
+            )}
           </div>
+          {isMobile && (
+            <button
+              type="button"
+              onClick={closeDrawer}
+              className="p-2 rounded-lg text-blue-200 hover:text-white hover:bg-white/10"
+              aria-label="Close menu"
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar">
-          {navItems.map(({ label, icon: Icon, to }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to !== '/inventory'}
-              onClick={handleLinkClick}
-              className={({ isActive }) =>
-                `relative flex items-center gap-4 px-4 py-3.5 rounded-2xl text-sm font-semibold transition-all group overflow-hidden ${
-                  isActive
-                    ? 'text-white bg-slate-900/80'
-                    : 'text-slate-500 hover:text-slate-300 hover:bg-slate-900/50'
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeNav"
-                      className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-transparent border-l-4 border-blue-500"
-                    />
-                  )}
-                  <Icon 
-                    size={20} 
-                    className={`relative z-10 transition-colors ${isActive ? 'text-blue-400' : 'group-hover:text-white'}`} 
-                  />
-                  <AnimatePresence mode="wait">
-                    {!collapsed && (
-                      <motion.span
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -10 }}
-                        className="relative z-10 whitespace-nowrap"
-                      >
-                        {label}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </>
-              )}
-            </NavLink>
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+          {showLabels && (
+            <p className="px-3 mb-2 text-[11px] font-semibold text-blue-300/50 uppercase tracking-wider">Menu</p>
+          )}
+          {navItems.map((item) => (
+            <NavItem
+              key={item.to}
+              {...item}
+              showLabels={showLabels}
+              centerIcon={centerIcon}
+              onNavigate={closeDrawer}
+            />
           ))}
         </nav>
 
-        {/* User Profile Footer */}
-        <div className="p-4 mt-auto border-t border-slate-800/50">
-          <div className={`p-3 rounded-3xl bg-slate-900/40 border border-slate-800/50 transition-all ${collapsed ? 'text-center' : ''}`}>
-            <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-slate-700 to-slate-800 border-2 border-slate-700 flex items-center justify-center shrink-0">
-                <span className="text-sm font-black text-blue-400">
-                  {user?.name?.charAt(0).toUpperCase() || 'A'}
-                </span>
+        <div className={`shrink-0 border-t border-white/10 ${showLabels ? 'p-4' : 'p-3'}`}>
+          <button
+            type="button"
+            onClick={goProfile}
+            className={`flex items-center w-full text-left hover:opacity-90 ${showLabels ? 'gap-3' : 'justify-center'}`}
+          >
+            <UserAvatar user={user} size="sm" className="!rounded-full" />
+            {showLabels && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
+                <p className="text-xs text-blue-300/60 capitalize">{ROLE_LABELS[user?.role] || user?.role}</p>
               </div>
-
-              {!collapsed && (
-                <div className="flex flex-col min-w-0">
-                  <span className="text-white text-sm font-bold truncate">{user?.name || 'Administrator'}</span>
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <ShieldCheck size={14} className="text-blue-500" />
-                    <span className="text-slate-500 font-medium uppercase tracking-wide">{user?.role}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+            )}
+          </button>
+          {showLabels && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[13px] font-medium text-rose-300 hover:text-white hover:bg-rose-500/20 border border-rose-500/20"
+            >
+              <LogOut size={15} />
+              Sign out
+            </button>
+          )}
         </div>
 
-        {/* Version */}
-        <div className="pb-6 text-center">
-          <span className="text-slate-700 text-[9px] font-black tracking-[0.4em] uppercase">
-            {collapsed ? 'v24' : 'Engine v24.0.1'}
-          </span>
+        <div className="hidden lg:block border-t border-white/10 p-2">
+          <button
+            type="button"
+            onClick={() => dispatch(toggleSidebar())}
+            className={`w-full flex items-center gap-2 rounded-xl py-2 text-blue-300/60 hover:text-white hover:bg-white/10 text-[13px] ${
+              showLabels ? 'px-3' : 'justify-center px-0'
+            }`}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            {showLabels && <span>{collapsed ? 'Expand' : 'Collapse'}</span>}
+          </button>
         </div>
-
-        {/* Desktop Collapse Toggle */}
-        <button
-          onClick={() => dispatch(toggleSidebar())}
-          className="hidden lg:flex absolute -right-4 top-1/2 -translate-y-1/2 w-8 h-8 bg-slate-950 border border-slate-700 rounded-2xl items-center justify-center text-slate-400 hover:text-blue-400 hover:border-blue-500 transition-all shadow-xl"
-        >
-          <motion.div animate={{ rotate: collapsed ? 0 : 180 }}>
-            <ChevronRight size={16} />
-          </motion.div>
-        </button>
-      </motion.aside>
+      </aside>
     </>
   );
 }
+
+export default memo(Sidebar);

@@ -5,6 +5,8 @@ const variants = {
   danger: 'bg-red-50 hover:bg-red-100 text-red-600 border border-red-200',
   ghost: 'hover:bg-slate-100 text-slate-600',
   success: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+  /** White button for gradient banners — set text color via className */
+  surface: 'bg-white shadow-md shadow-black/10 border-0 hover:brightness-[0.97]',
 };
 const sizes = {
   sm: 'px-3 py-1.5 text-xs rounded-lg',

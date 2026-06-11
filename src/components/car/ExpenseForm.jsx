@@ -4,7 +4,10 @@ import { addPurchaseExpenseThunk, addRepairCostThunk } from '../../store/slices/
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import toast from 'react-hot-toast';
-import { Upload, X } from 'lucide-react';
+import { Upload, X, FileText, ExternalLink } from 'lucide-react';
+
+const MAX_BILL_SIZE = 5 * 1024 * 1024;
+const ACCEPTED_BILL_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
 
 export default function ExpenseForm({ isOpen, onClose, carId, type = 'purchase' }) {
   const dispatch = useDispatch();
@@ -16,6 +19,7 @@ export default function ExpenseForm({ isOpen, onClose, carId, type = 'purchase' 
   });
   const [billImage, setBillImage] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [previewType, setPreviewType] = useState(null); // 'image' | 'pdf'
   const [loading, setLoading] = useState(false);
 
   const modalTitle = type === 'purchase' ? 'Add Purchase Expense' : 'Add Repair / Maintenance Cost';
@@ -26,20 +30,32 @@ export default function ExpenseForm({ isOpen, onClose, carId, type = 'purchase' 
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('File size should be less than 5MB');
-        return;
-      }
-      setBillImage(file);
-      setPreview(URL.createObjectURL(file));
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_BILL_SIZE) {
+      toast.error('File size should be less than 5MB');
+      return;
     }
+    if (!ACCEPTED_BILL_TYPES.includes(file.type)) {
+      toast.error('Only JPG, PNG, WEBP images and PDF files are allowed');
+      return;
+    }
+
+    if (preview) URL.revokeObjectURL(preview);
+
+    const isPdf = file.type === 'application/pdf';
+    setBillImage(file);
+    setPreviewType(isPdf ? 'pdf' : 'image');
+    setPreview(URL.createObjectURL(file));
+    e.target.value = '';
   };
 
   const removeFile = () => {
+    if (preview) URL.revokeObjectURL(preview);
     setBillImage(null);
     setPreview(null);
+    setPreviewType(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -117,8 +133,15 @@ export default function ExpenseForm({ isOpen, onClose, carId, type = 'purchase' 
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-2">Upload Bill / Receipt</label>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+            accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf"
+          />
           {!preview ? (
-            <div 
+            <div
               onClick={() => fileInputRef.current?.click()}
               className="border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-slate-50 transition-colors"
             >
@@ -126,14 +149,35 @@ export default function ExpenseForm({ isOpen, onClose, carId, type = 'purchase' 
                 <Upload size={20} />
               </div>
               <p className="text-sm font-medium text-slate-600">Click to upload</p>
-              <p className="text-xs text-slate-400">JPG, PNG up to 5MB</p>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileChange} 
-                className="hidden" 
-                accept="image/*"
-              />
+              <p className="text-xs text-slate-400">JPG, PNG, WEBP or PDF up to 5MB</p>
+            </div>
+          ) : previewType === 'pdf' ? (
+            <div className="relative rounded-xl border border-slate-200 bg-slate-50 p-5">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center text-red-500 flex-shrink-0">
+                  <FileText size={24} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{billImage?.name}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">PDF document ready to upload</p>
+                  <a
+                    href={preview}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 mt-2"
+                  >
+                    <ExternalLink size={12} />
+                    Preview PDF
+                  </a>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={removeFile}
+                className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-lg shadow-sm text-red-500 hover:bg-red-50 transition-colors"
+              >
+                <X size={16} />
+              </button>
             </div>
           ) : (
             <div className="relative rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-50">

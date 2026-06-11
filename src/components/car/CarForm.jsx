@@ -9,6 +9,7 @@ import { Upload, X, Image as ImageIcon, Plus, DollarSign } from "lucide-react";
 const BRANDS = ["Maruti Suzuki", "Hyundai", "Honda", "Toyota", "Tata", "Mahindra", "Kia", "Volkswagen", "Skoda", "Ford", "Renault", "Nissan", "MG", "Jeep", "Other"];
 const FUEL_TYPES = ["petrol", "diesel", "electric", "cng", "hybrid"];
 const OWNER_TYPES = ["1st", "2nd", "3rd", "4th+"];
+const CAR_COLORS = ["White", "Black", "Silver", "Grey", "Red", "Blue", "Brown", "Green", "Yellow", "Orange", "Beige", "Gold", "Maroon", "Other"];
 const PAYMENT_MODES = [
   { label: "Cash", value: "cash" },
   { label: "GPay", value: "gpay" },
@@ -18,10 +19,12 @@ const PAYMENT_MODES = [
 
 const defaultForm = {
   brand: "", model: "", year: new Date().getFullYear(), chassisNumber: "", registrationNumber: "",
-  ownerType: "1st", fuelType: "petrol", mileage: "", purchasePrice: "",
+  ownerType: "1st", fuelType: "petrol", color: "", customColor: "", mileage: "", purchasePrice: "",
   paymentMode: "cash", utrNumber: "",
   paymentDate: new Date().toISOString().split('T')[0],
   paymentDescription: "",
+  purchaseCustomerName: "",
+  purchaseCustomerPhone: "",
 };
 
 export default function CarForm({ isOpen, onClose }) {
@@ -92,16 +95,33 @@ export default function CarForm({ isOpen, onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.brand || !form.model || !form.registrationNumber || !form.purchasePrice) {
+    if (!form.brand || !form.model || !form.registrationNumber || !form.purchasePrice || !form.color) {
       toast.error("Please fill all required fields");
+      return;
+    }
+    if (form.color === "Other" && !form.customColor.trim()) {
+      toast.error("Please enter the car color");
+      return;
+    }
+    if (!form.purchaseCustomerName.trim()) {
+      toast.error("Seller customer name is required");
+      return;
+    }
+    if (!/^\d{10}$/.test(form.purchaseCustomerPhone)) {
+      toast.error("Enter a valid 10-digit phone number");
       return;
     }
     setLoading(true);
 
     const formData = new FormData();
     Object.keys(form).forEach(key => {
+      if (key === "customColor") return;
       formData.append(key, form[key]);
     });
+    formData.set(
+      "color",
+      form.color === "Other" ? form.customColor.trim() : form.color
+    );
     
     images.forEach(image => {
       formData.append("images", image);
@@ -122,7 +142,6 @@ export default function CarForm({ isOpen, onClose }) {
     });
 
     const result = await dispatch(createCarThunk(formData));
-    setLoading(true);
     if (result.meta.requestStatus === "fulfilled") {
       toast.success("Car added to inventory!");
       setForm(defaultForm);
@@ -161,6 +180,19 @@ export default function CarForm({ isOpen, onClose }) {
               {FUEL_TYPES.map((f) => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Color <span className="text-red-500">*</span></label>
+            <select name="color" value={form.color} onChange={handleChange} required className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl">
+              <option value="">Select Color</option>
+              {CAR_COLORS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          {form.color === "Other" && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Custom Color <span className="text-red-500">*</span></label>
+              <input name="customColor" value={form.customColor} onChange={handleChange} required placeholder="e.g. Pearl White" className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl" />
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Kilometers Run (KM)</label>
             <input name="mileage" type="number" value={form.mileage} onChange={handleChange} placeholder="e.g. 45000" className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl" />
@@ -201,6 +233,36 @@ export default function CarForm({ isOpen, onClose }) {
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Chassis No.</label>
           <input name="chassisNumber" value={form.chassisNumber} onChange={handleChange} placeholder="e.g. MA3FJEB1S00123456" className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl" />
+        </div>
+        <div className="bg-violet-50/50 p-4 rounded-2xl border border-violet-100 space-y-4">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-violet-800">Seller / Customer Details</h3>
+          <p className="text-xs text-violet-600/80 -mt-2">Person you purchased this vehicle from (visible to admin only)</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Customer Name <span className="text-red-500">*</span></label>
+              <input
+                name="purchaseCustomerName"
+                value={form.purchaseCustomerName}
+                onChange={handleChange}
+                required
+                placeholder="e.g. Rajesh Kumar"
+                className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number <span className="text-red-500">*</span></label>
+              <input
+                name="purchaseCustomerPhone"
+                value={form.purchaseCustomerPhone}
+                onChange={handleChange}
+                required
+                type="tel"
+                maxLength={10}
+                placeholder="e.g. 9876543210"
+                className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white"
+              />
+            </div>
+          </div>
         </div>
         <div className="bg-slate-50 p-4 rounded-2xl space-y-4">
           <div className="flex items-center justify-between">

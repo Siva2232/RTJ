@@ -22,9 +22,15 @@ export const getImageUrl = (path) => {
   if (!path) return null;
   // Already absolute (http/https/blob/data)
   if (/^https?:\/\/|^blob:|^data:/.test(path)) return path;
-  // Relative path — prepend backend origin
+  // In dev, use relative path so Vite's /uploads proxy reaches the local backend
+  if (import.meta.env.DEV) {
+    return path.startsWith('/') ? path : `/${path}`;
+  }
+  // Production — prepend backend origin
   return `${API_ORIGIN}${path.startsWith('/') ? '' : '/'}${path}`;
 };
+
+export const isPdfUrl = (path) => /\.pdf$/i.test(path || '');
 
 
 

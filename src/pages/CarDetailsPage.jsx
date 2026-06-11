@@ -1,19 +1,17 @@
 ﻿import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Car, Calendar, Fuel, User, Hash,
-  Plus, Trash2, TrendingUp, TrendingDown, DollarSign, Wrench,
-  ShoppingCart, CheckCircle, ChevronRight, Image as ImageIcon,
-  Info, MapPin, Phone, ShieldCheck, Target, Gauge
+  ArrowLeft, Car, Calendar, Fuel, User, Plus,
+  TrendingUp, TrendingDown, DollarSign, Wrench, ShoppingCart,
+  ChevronRight, Phone, Target, Gauge, FileText, Palette,
+  CreditCard, Hash, ImageIcon,
 } from 'lucide-react';
 import {
   fetchCarById,
   selectCarById,
   calcTotalCost,
   calcProfit,
-  updateStatusThunk,
   deletePurchaseExpenseThunk,
   deleteRepairCostThunk,
 } from '../store/slices/carSlice';
@@ -22,24 +20,109 @@ import Button from '../components/ui/Button';
 import ExpenseForm from '../components/car/ExpenseForm';
 import SellCarForm from '../components/car/SellCarForm';
 import MarkReadyForm from '../components/car/MarkReadyForm';
+import MoveToRepairModal from '../components/car/MoveToRepairModal';
+import ExpenseDocumentCard from '../components/car/ExpenseDocumentCard';
+import DocumentViewerModal from '../components/car/DocumentViewerModal';
+import SaleCustomerDetailsPanel from '../components/car/SaleCustomerDetailsPanel';
 import toast from 'react-hot-toast';
 import { getImageUrl } from '../utils/helper';
+import {
+  DashboardPage, DashboardBanner, BannerStatGrid, DashboardSection, EmptyState,
+} from '../components/dashboard/DashboardUI';
 
 const STATUS_FLOW = { purchased: 'repair', repair: 'ready', ready: null };
 const NEXT_LABEL = { purchased: 'Move to Repair', repair: 'Mark as Ready' };
+const PIPELINE = [
+  { key: 'purchased', label: 'Purchased', color: 'bg-blue-500' },
+  { key: 'repair', label: 'Repair', color: 'bg-amber-500' },
+  { key: 'ready', label: 'Ready', color: 'bg-emerald-500' },
+  { key: 'sold', label: 'Sold', color: 'bg-violet-500' },
+];
+
+const STATUS_GRADIENT = {
+  purchased: 'from-blue-600 via-blue-600 to-indigo-700',
+  repair: 'from-amber-500 via-orange-500 to-orange-600',
+  ready: 'from-emerald-500 via-teal-500 to-cyan-600',
+  sale_pending: 'from-orange-500 via-amber-500 to-yellow-500',
+  sold: 'from-violet-600 via-purple-600 to-indigo-700',
+};
+
+function StatusPipeline({ status }) {
+  const activeIdx = status === 'sale_pending'
+    ? PIPELINE.findIndex((s) => s.key === 'ready')
+    : PIPELINE.findIndex((s) => s.key === status);
+
+  return (
+    <div className="flex items-center gap-1 sm:gap-2 w-full overflow-x-auto pb-0.5 scrollbar-none">
+      {PIPELINE.map((step, i) => {
+        const done = i < activeIdx;
+        const active = i === activeIdx || (status === 'sale_pending' && step.key === 'ready');
+        const pending = i > activeIdx;
+        return (
+          <div key={step.key} className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
+            <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
+              <div
+                className={`w-full h-1.5 rounded-full transition-all ${
+                  done ? step.color : active ? step.color : 'bg-white/25'
+                } ${active ? 'ring-2 ring-white/40 ring-offset-1 ring-offset-transparent' : ''}`}
+              />
+              <span
+                className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wide truncate w-full text-center ${
+                  pending ? 'text-white/40' : 'text-white/90'
+                }`}
+              >
+                {step.label}
+              </span>
+            </div>
+            {i < PIPELINE.length - 1 && (
+              <ChevronRight size={12} className="text-white/30 shrink-0 hidden sm:block" />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SpecPill({ icon: Icon, label, value }) {
+  if (!value || value === '—') return null;
+  return (
+    <span className="inline-flex items-center gap-1.5 bg-white/15 backdrop-blur-sm border border-white/20 rounded-lg px-2.5 py-1.5 text-xs text-white">
+      {Icon && <Icon size={12} className="text-white/70 shrink-0" />}
+      <span className="text-white/60 font-medium">{label}</span>
+      <span className="font-bold capitalize truncate max-w-[100px] sm:max-w-none">{value}</span>
+    </span>
+  );
+}
+
+function InfoRow({ icon: Icon, label, value, accent = 'text-slate-900' }) {
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+      <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-sm">
+        <Icon size={16} className="text-slate-500" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
+        <p className={`text-sm font-bold mt-0.5 truncate ${accent}`}>{value || '—'}</p>
+      </div>
+    </div>
+  );
+}
 
 export default function CarDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector((s) => s.auth);
-
   const car = useSelector(selectCarById(id));
 
   const [showPurchaseExpForm, setShowPurchaseExpForm] = useState(false);
   const [showRepairExpForm, setShowRepairExpForm] = useState(false);
   const [showSellForm, setShowSellForm] = useState(false);
   const [showMarkReadyForm, setShowMarkReadyForm] = useState(false);
+  const [showMoveToRepairModal, setShowMoveToRepairModal] = useState(false);
+  const [viewerDoc, setViewerDoc] = useState(null);
+  const [activeImage, setActiveImage] = useState(0);
 
   useEffect(() => {
     dispatch(fetchCarById(id));
@@ -47,13 +130,14 @@ export default function CarDetailsPage() {
 
   if (!car) {
     return (
-      <div className="flex items-center justify-center h-[60vh] px-4">
-        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
-          <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-sm">
-            <Car size={32} className="text-slate-300 animate-pulse" />
+      <div className="flex items-center justify-center h-[50vh] px-4">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
+            <Car size={30} className="text-blue-400 animate-pulse" />
           </div>
-          <p className="text-slate-500 font-semibold tracking-tight">Loading vehicle details...</p>
-        </motion.div>
+          <p className="text-slate-600 text-sm font-semibold">Loading vehicle details...</p>
+          <p className="text-slate-400 text-xs mt-1">Please wait</p>
+        </div>
       </div>
     );
   }
@@ -64,25 +148,29 @@ export default function CarDetailsPage() {
   const repairExpTotal = (car.repairCosts || []).reduce((s, e) => s + (e.amount || 0), 0);
   const isProfit = profit !== null && profit >= 0;
 
+  const allImages = [
+    ...(car.images || []).map((src) => ({ src, type: 'purchase' })),
+    ...(car.repairImages || []).map((src) => ({ src, type: 'repair' })),
+  ];
+  const galleryImages = allImages.length > 0 ? allImages : [];
+  const mainImage = galleryImages[activeImage]?.src;
+
+  const openDocumentViewer = (expense) => {
+    if (!expense?.billImage) return;
+    setViewerDoc({ billImage: expense.billImage, expense });
+  };
+
   const canAddPurchaseExp = user?.role === 'admin' || user?.role === 'purchase';
   const canAddRepairExp = user?.role === 'admin' || user?.role === 'sales';
   const canSell = (user?.role === 'admin' || user?.role === 'sales') && car.status === 'ready';
   const isSalePending = car.status === 'sale_pending';
   const canAdvanceStatus = (user?.role === 'admin' || user?.role === 'sales') && STATUS_FLOW[car.status];
 
-  const handleStatusAdvance = async () => {
+  const handleStatusAdvance = () => {
     const next = STATUS_FLOW[car.status];
     if (!next) return;
-    if (next === 'ready') {
-      setShowMarkReadyForm(true);
-      return;
-    }
-    const result = await dispatch(updateStatusThunk({ carId: car._id, status: next }));
-    if (updateStatusThunk.fulfilled.match(result)) {
-      toast.success(`Status updated to "${next}"`);
-    } else {
-      toast.error(result.payload || 'Failed to update status');
-    }
+    if (next === 'repair') setShowMoveToRepairModal(true);
+    else if (next === 'ready') setShowMarkReadyForm(true);
   };
 
   const handleDeletePurchaseExpense = async (expenseId) => {
@@ -97,281 +185,403 @@ export default function CarDetailsPage() {
     else toast.error(result.payload || 'Failed to remove repair cost');
   };
 
-  const coverImage = getImageUrl(car.repairImages?.[0] || car.images?.[0]);
+  const isAdmin = user?.role === 'admin';
+  const purchaserName = car.purchasedBy?.name || 'Unknown';
+  const sellerName = car.soldBy?.name;
+  const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN')}`;
+  const bannerGradient = STATUS_GRADIENT[car.status] || STATUS_GRADIENT.purchased;
+
+  const bannerStats = [
+    { label: 'Purchase Price', value: fmt(car.purchasePrice), icon: ShoppingCart, gradient: 'from-blue-400 to-cyan-400' },
+    { label: 'Expenses', value: fmt(purchaseExpTotal), icon: FileText, gradient: 'from-sky-400 to-blue-400' },
+    { label: 'Repair Costs', value: fmt(repairExpTotal), icon: Wrench, gradient: 'from-amber-400 to-orange-400' },
+    {
+      label: car.status === 'sold' ? (isProfit ? 'Net Profit' : 'Net Loss') : 'Total Investment',
+      value: car.status === 'sold' ? fmt(Math.abs(profit)) : fmt(totalCost),
+      icon: car.status === 'sold' ? (isProfit ? TrendingUp : TrendingDown) : Target,
+      gradient: car.status === 'sold' ? (isProfit ? 'from-emerald-400 to-teal-400' : 'from-rose-400 to-red-400') : 'from-violet-400 to-purple-400',
+    },
+  ];
 
   return (
-    <div className="min-h-screen bg-slate-50/50 pb-24 md:pb-8">
-      <div className="max-w-6xl mx-auto p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
-        {/* Navigation Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="group flex items-center gap-2 text-slate-500 hover:text-blue-600 font-medium transition-all self-start"
-          >
-            <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-200 group-hover:border-blue-200 transition-colors">
-              <ArrowLeft size={18} />
-            </div>
-            <span className="text-sm">Back to Inventory</span>
-          </button>
-
-          <div className="flex items-center gap-3">
-            {car.status !== 'sold' && !isSalePending && (
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                {canSell && (
-                  <Button variant="success" size="sm" leftIcon={<DollarSign size={16} />} onClick={() => setShowSellForm(true)} className="w-full sm:w-auto">
-                    Sell Vehicle
-                  </Button>
-                )}
-                {canAdvanceStatus && (
-                  <Button variant="primary" size="sm" leftIcon={<ChevronRight size={16} />} onClick={handleStatusAdvance} className="w-full sm:w-auto">
-                    {NEXT_LABEL[car.status]}
-                  </Button>
-                )}
-              </div>
-            )}
-            <StatusBadge status={car.status} className="px-4 py-1.5 text-sm shadow-sm" />
-          </div>
-        </div>
-
-        {/* Hero Section */}
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
-          <div className="relative h-[260px] sm:h-[320px] md:h-[420px] lg:h-[480px]">
-            {coverImage ? (
-              <img
-                src={coverImage}
-                alt={`${car.brand} ${car.model}`}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full bg-slate-100">
-                <Car size={80} className="text-slate-300" />
-              </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-            
-            <div className="absolute bottom-6 left-6 right-6">
-              <h1 className="text-white text-3xl sm:text-4xl md:text-5xl font-black tracking-tight">
-                {car.brand} <span className="font-light">{car.model}</span>
-              </h1>
-              <div className="flex flex-wrap items-center gap-3 mt-3">
-                <span className="bg-blue-600 text-white px-4 py-1.5 rounded-2xl text-sm font-bold tracking-widest uppercase shadow-lg">
-                  {car.registrationNumber}
-                </span>
-                {car.year && <span className="text-white/90 text-lg font-medium">{car.year} Model</span>}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Technical Specs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          {[
-            { icon: Calendar, label: 'Year of Mfg', value: car.year },
-            { icon: Fuel, label: 'Fuel Engine', value: car.fuelType },
-            { icon: Gauge, label: 'Kilometers', value: car.mileage ? `${car.mileage.toLocaleString('en-IN')} km` : '—' },
-            { icon: User, label: 'Ownership', value: `${car.ownerType} Owner` },
-            { icon: ShieldCheck, label: 'Status', value: car.status?.replace('_', ' ') },
-          ].map(({ icon: Icon, label, value }) => (
-            <div key={label} className="bg-white p-5 rounded-3xl border border-slate-200 flex items-center gap-4">
-              <div className="p-3 bg-slate-100 rounded-2xl text-slate-500"><Icon size={20} /></div>
-              <div>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">{label}</p>
-                <p className="text-slate-900 font-semibold text-lg mt-0.5 capitalize">{value || 'N/A'}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Payment Info */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-emerald-600 text-white rounded-2xl"><DollarSign size={20} /></div>
-            <h3 className="font-black text-lg">Payment Details</h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Method</p>
-              <p className="text-slate-900 font-black text-lg mt-1 uppercase">{car.paymentMode || 'Cash'}</p>
-            </div>
-            <div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Transaction Ref (UTR)</p>
-              <p className="text-slate-900 font-black text-lg mt-1">{car.utrNumber || '—'}</p>
-            </div>
-            <div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Payment Date</p>
-              <p className="text-slate-900 font-black text-lg mt-1">
-                {car.paymentDate ? new Date(car.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-              </p>
-            </div>
-            <div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Notes</p>
-              <p className="text-slate-600 font-medium text-sm mt-1">{car.paymentDescription || 'No additional notes'}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Financial Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          {/* Base Purchase */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
-            <div className="w-11 h-11 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4"><ShoppingCart size={22} /></div>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Purchase Price</p>
-            <p className="text-2xl font-black text-slate-900 mt-1">₹{(car.purchasePrice || 0).toLocaleString('en-IN')}</p>
-          </div>
-
-          {/* Total Expenses */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
-            <div className="w-11 h-11 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mb-4"><Wrench size={22} /></div>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Total Expenses</p>
-            <p className="text-2xl font-black text-slate-900 mt-1">₹{(purchaseExpTotal + repairExpTotal).toLocaleString('en-IN')}</p>
-          </div>
-
-          {/* Net Investment */}
-          <div className="bg-slate-900 rounded-3xl p-6 shadow-xl text-white lg:col-span-1">
-            <div className="w-11 h-11 bg-slate-800 rounded-2xl flex items-center justify-center mb-4"><Target size={22} /></div>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Net Investment</p>
-            <p className="text-3xl font-black mt-1">₹{totalCost.toLocaleString('en-IN')}</p>
-          </div>
-
-          {/* Profit / Loss */}
-          {car.status === 'sold' ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`rounded-3xl p-6 ${isProfit ? 'bg-emerald-600' : 'bg-rose-600'} text-white`}>
-              <div className="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center mb-4">
-                {isProfit ? <TrendingUp size={22} /> : <TrendingDown size={22} />}
-              </div>
-              <p className="text-white/70 text-xs font-bold uppercase tracking-widest">{isProfit ? 'PROFIT' : 'LOSS'}</p>
-              <p className="text-3xl font-black mt-1">₹{Math.abs(profit).toLocaleString('en-IN')}</p>
-            </motion.div>
-          ) : (
-            <div className="bg-white rounded-3xl p-6 border border-dashed border-slate-300 flex flex-col items-center justify-center text-center">
-              <DollarSign size={32} className="text-slate-300 mb-3" />
-              <p className="text-slate-400 font-bold text-sm">PROFIT PENDING</p>
+    <DashboardPage className="pb-28 lg:pb-6">
+      {/* Back + actions */}
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-2 text-slate-500 hover:text-blue-600 text-sm font-semibold transition-colors group"
+        >
+          <span className="p-2 bg-white rounded-xl border border-slate-200 shadow-sm group-hover:border-blue-200 group-hover:shadow-md transition-all">
+            <ArrowLeft size={16} />
+          </span>
+          <span className="hidden sm:inline">Back to Inventory</span>
+        </button>
+        <div className="flex items-center gap-2">
+          <StatusBadge status={car.status} />
+          {car.status !== 'sold' && !isSalePending && (
+            <div className="hidden md:flex items-center gap-2">
+              {canSell && (
+                <Button variant="success" size="sm" leftIcon={<DollarSign size={14} />} onClick={() => setShowSellForm(true)}>
+                  Sell Vehicle
+                </Button>
+              )}
+              {canAdvanceStatus && (
+                <Button variant="surface" size="sm" rightIcon={<ChevronRight size={14} />} onClick={handleStatusAdvance} className="!text-slate-800">
+                  {NEXT_LABEL[car.status]}
+                </Button>
+              )}
             </div>
           )}
         </div>
-
-        {/* Expense Sections */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-          {/* Purchase Expenses */}
-          <section className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-5 border-b flex items-center justify-between bg-slate-50">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-blue-600 text-white rounded-2xl"><ShoppingCart size={20} /></div>
-                <h3 className="font-black text-lg">Sourcing Costs</h3>
-              </div>
-              {canAddPurchaseExp && car.status !== 'sold' && (
-                <Button variant="outline" leftIcon={<Plus size={16} />} onClick={() => setShowPurchaseExpForm(true)}>
-                  Add
-                </Button>
-              )}
-            </div>
-            <div className="p-5 space-y-3 max-h-[420px] overflow-y-auto">
-              {(car.purchaseExpenses || []).length === 0 ? (
-                <div className="text-center py-12 text-slate-400">No sourcing expenses recorded</div>
-              ) : (
-                (car.purchaseExpenses || []).map((exp) => (
-                  <div key={exp._id} className="flex justify-between items-center p-4 bg-white border border-slate-100 rounded-2xl hover:border-blue-200 group">
-                    <div className="flex items-center gap-4">
-                      <div className="text-center">
-                        <p className="text-xs font-bold text-slate-400">{exp.date ? new Date(exp.date).getDate() : '—'}</p>
-                      </div>
-                      <div>
-                        <p className="font-semibold">{exp.title}</p>
-                        <p className="text-xs text-slate-500">{exp.date ? new Date(exp.date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : ''}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="font-black">₹{exp.amount.toLocaleString('en-IN')}</span>
-                      {canAddPurchaseExp && (
-                        <button onClick={() => handleDeletePurchaseExpense(exp._id)} className="opacity-0 group-hover:opacity-100 text-rose-400 hover:text-rose-600 p-1">
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="bg-blue-50 px-6 py-4 flex justify-between font-black text-blue-700">
-              <span>Total Sourcing</span>
-              <span>₹{purchaseExpTotal.toLocaleString('en-IN')}</span>
-            </div>
-          </section>
-
-          {/* Repair Expenses */}
-          <section className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-5 border-b flex items-center justify-between bg-slate-50">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-amber-500 text-white rounded-2xl"><Wrench size={20} /></div>
-                <h3 className="font-black text-lg">Refurbishment Log</h3>
-              </div>
-              {canAddRepairExp && car.status !== 'sold' && (
-                <Button variant="outline" leftIcon={<Plus size={16} />} onClick={() => setShowRepairExpForm(true)}>
-                  Log
-                </Button>
-              )}
-            </div>
-            <div className="p-5 space-y-3 max-h-[420px] overflow-y-auto">
-              {(car.repairCosts || []).length === 0 ? (
-                <div className="text-center py-12 text-slate-400">No repair costs recorded</div>
-              ) : (
-                (car.repairCosts || []).map((exp) => (
-                  <div key={exp._id} className="flex justify-between items-center p-4 bg-white border border-slate-100 rounded-2xl hover:border-amber-200 group">
-                    <div className="flex items-center gap-4">
-                      <div className="text-center">
-                        <p className="text-xs font-bold text-slate-400">{exp.date ? new Date(exp.date).getDate() : '—'}</p>
-                      </div>
-                      <div>
-                        <p className="font-semibold">{exp.title}</p>
-                        <p className="text-xs text-slate-500">{exp.date ? new Date(exp.date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : ''}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="font-black">₹{exp.amount.toLocaleString('en-IN')}</span>
-                      {canAddRepairExp && (
-                        <button onClick={() => handleDeleteRepairCost(exp._id)} className="opacity-0 group-hover:opacity-100 text-rose-400 hover:text-rose-600 p-1">
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="bg-amber-50 px-6 py-4 flex justify-between font-black text-amber-700">
-              <span>Total Repairs</span>
-              <span>₹{repairExpTotal.toLocaleString('en-IN')}</span>
-            </div>
-          </section>
-        </div>
-
-        {/* Sold Customer Details */}
-        {car.status === 'sold' && car.customerDetails && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-slate-900 rounded-3xl p-6 md:p-8 text-white">
-            <h3 className="font-black text-2xl mb-6 flex items-center gap-3">
-              <DollarSign className="text-emerald-500" /> Ownership Transfer
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-8 gap-x-10">
-              <div><p className="text-xs uppercase text-slate-400">Customer</p><p className="font-bold text-lg">{car.customerDetails.name}</p></div>
-              <div><p className="text-xs uppercase text-slate-400">Phone</p><p className="font-bold text-lg">{car.customerDetails.phone}</p></div>
-              <div><p className="text-xs uppercase text-slate-400">Address</p><p className="font-medium">{car.customerDetails.address || '—'}</p></div>
-              <div><p className="text-xs uppercase text-slate-400">Sold On</p><p className="font-bold">{car.soldDate ? new Date(car.soldDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}</p></div>
-            </div>
-          </motion.div>
-        )}
       </div>
 
-      {/* Mobile Floating Action Bar */}
+      {/* Hero banner */}
+      <DashboardBanner
+        eyebrow="Vehicle Details"
+        title={`${car.brand} ${car.model}`}
+        description={car.registrationNumber}
+        gradient={bannerGradient}
+        shadow="shadow-indigo-500/25"
+        action={
+          car.sellingPrice && car.status === 'sold' ? (
+            <div className="text-right shrink-0">
+              <p className="text-white/60 text-[10px] font-semibold uppercase tracking-wider">Sold For</p>
+              <p className="text-2xl sm:text-3xl font-black text-white">{fmt(car.sellingPrice)}</p>
+            </div>
+          ) : null
+        }
+      >
+        <div className="flex flex-wrap gap-2 mb-4">
+          <SpecPill icon={Hash} label="Reg" value={car.registrationNumber} />
+          <SpecPill icon={Calendar} label="Year" value={car.year} />
+          <SpecPill icon={Fuel} label="Fuel" value={car.fuelType} />
+          <SpecPill icon={Palette} label="Color" value={car.color} />
+          <SpecPill icon={Gauge} label="KM" value={car.mileage ? car.mileage.toLocaleString('en-IN') : null} />
+          <SpecPill icon={User} label="Owner" value={`${car.ownerType} Owner`} />
+        </div>
+        <StatusPipeline status={car.status} />
+        <div className="mt-4">
+          <BannerStatGrid items={bannerStats} />
+        </div>
+      </DashboardBanner>
+
+      {/* Gallery + sidebar info */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Image gallery */}
+        <div className="lg:col-span-7">
+          <DashboardSection
+            title="Photos"
+            subtitle={`${galleryImages.length} image${galleryImages.length !== 1 ? 's' : ''}`}
+            headerAccent="from-blue-500 to-indigo-500"
+            className="h-full"
+          >
+            {galleryImages.length === 0 ? (
+              <EmptyState
+                icon={ImageIcon}
+                title="No photos uploaded"
+                subtitle="Vehicle images will appear here once added"
+              />
+            ) : (
+              <div className="space-y-3">
+                <div className="relative rounded-xl overflow-hidden bg-slate-100 aspect-[16/10] sm:aspect-[16/9]">
+                  <img
+                    src={getImageUrl(mainImage)}
+                    alt={`${car.brand} ${car.model}`}
+                    className="w-full h-full object-cover"
+                  />
+                  {galleryImages[activeImage]?.type === 'repair' && (
+                    <span className="absolute top-3 left-3 bg-amber-500 text-white text-[10px] font-bold uppercase px-2.5 py-1 rounded-lg shadow-lg">
+                      Repair Photo
+                    </span>
+                  )}
+                </div>
+                {galleryImages.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                    {galleryImages.map((img, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setActiveImage(i)}
+                        className={`relative shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 transition-all ${
+                          activeImage === i ? 'border-blue-500 shadow-md shadow-blue-500/20 scale-105' : 'border-slate-200 opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        <img src={getImageUrl(img.src)} alt="" className="w-full h-full object-cover" />
+                        {img.type === 'repair' && (
+                          <span className="absolute bottom-0 inset-x-0 bg-amber-500/90 text-white text-[7px] font-bold text-center py-0.5">RPR</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </DashboardSection>
+        </div>
+
+        {/* Payment + team */}
+        <div className="lg:col-span-5 space-y-4">
+          <DashboardSection title="Payment Details" subtitle="Transaction record" headerAccent="from-emerald-500 to-teal-500">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <InfoRow icon={CreditCard} label="Method" value={(car.paymentMode || 'Cash').toUpperCase()} />
+              <InfoRow icon={Hash} label="UTR Number" value={car.utrNumber} />
+              <InfoRow
+                icon={Calendar}
+                label="Payment Date"
+                value={
+                  car.paymentDate
+                    ? new Date(car.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                    : null
+                }
+              />
+              <InfoRow icon={DollarSign} label="Purchase Price" value={fmt(car.purchasePrice)} accent="text-blue-700" />
+              {car.paymentDescription && (
+                <div className="sm:col-span-2 p-3 rounded-xl bg-blue-50 border border-blue-100">
+                  <p className="text-[10px] font-semibold text-blue-500 uppercase tracking-wide">Notes</p>
+                  <p className="text-xs text-slate-700 mt-1 leading-relaxed">{car.paymentDescription}</p>
+                </div>
+              )}
+            </div>
+          </DashboardSection>
+
+          {isAdmin && (
+            <DashboardSection title="Team & Contacts" subtitle="People involved" headerAccent="from-indigo-500 to-violet-500">
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100">
+                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-black shrink-0 shadow-sm">
+                    {purchaserName.charAt(0)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">Purchased By</p>
+                    <p className="text-sm font-bold text-slate-900 truncate">{purchaserName}</p>
+                    {car.purchaseDate && (
+                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                        <Calendar size={10} />
+                        {new Date(car.purchaseDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {car.purchaseCustomerDetails?.name && (
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-100">
+                    <div className="w-10 h-10 rounded-full bg-violet-600 text-white flex items-center justify-center text-sm font-black shrink-0">
+                      {car.purchaseCustomerDetails.name.charAt(0)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wider">Seller (Customer)</p>
+                      <p className="text-sm font-bold text-slate-900 truncate">{car.purchaseCustomerDetails.name}</p>
+                      {car.purchaseCustomerDetails.phone && (
+                        <a
+                          href={`tel:${car.purchaseCustomerDetails.phone}`}
+                          className="inline-flex items-center gap-1 text-xs text-violet-700 font-semibold mt-0.5 hover:underline"
+                        >
+                          <Phone size={11} /> {car.purchaseCustomerDetails.phone}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {sellerName && (
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100">
+                    <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center text-sm font-black shrink-0">
+                      {sellerName.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Sold By</p>
+                      <p className="text-sm font-bold text-slate-900 truncate">{sellerName}</p>
+                    </div>
+                  </div>
+                )}
+
+                {!car.purchaseCustomerDetails?.name && !sellerName && (
+                  <p className="text-xs text-slate-400 text-center py-2">No additional contacts</p>
+                )}
+              </div>
+            </DashboardSection>
+          )}
+        </div>
+      </div>
+
+      {/* Sale panels */}
+      {(car.status === 'sold' || isSalePending) && isAdmin && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {car.status === 'sold' && car.customerDetails && (
+            <SaleCustomerDetailsPanel
+              customer={car.customerDetails}
+              soldBy={car.soldBy}
+              soldDate={car.soldDate}
+              sellingPrice={car.sellingPrice}
+              onViewDocument={openDocumentViewer}
+            />
+          )}
+          {isSalePending && car.saleApproval?.customerDetails && (
+            <SaleCustomerDetailsPanel
+              variant="light"
+              customer={car.saleApproval.customerDetails}
+              soldBy={car.saleApproval.requestedBy}
+              sellingPrice={car.saleApproval.requestedPrice}
+              onViewDocument={openDocumentViewer}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Expenses grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <DashboardSection
+          title="Expenses"
+          subtitle={`${(car.purchaseExpenses || []).length} records · ${fmt(purchaseExpTotal)} total`}
+          headerClass="bg-gradient-to-r from-blue-600 to-blue-700 [&_h3]:!text-white [&_p]:!text-blue-100"
+          className="max-h-[460px] flex flex-col"
+          scrollable
+          badge={
+            canAddPurchaseExp && car.status !== 'sold' ? (
+              <Button
+                variant="surface"
+                size="sm"
+                leftIcon={<Plus size={14} />}
+                onClick={() => setShowPurchaseExpForm(true)}
+                className="!bg-white/20 !text-white !shadow-none hover:!bg-white/30 !text-xs !h-8 !px-3 !border-0"
+              >
+                Add
+              </Button>
+            ) : null
+          }
+        >
+          {(car.purchaseExpenses || []).length === 0 ? (
+            <EmptyState icon={FileText} title="No expenses" subtitle="Add transport, paperwork & acquisition costs" />
+          ) : (
+            <div className="space-y-2">
+              {(car.purchaseExpenses || []).map((exp, idx) => (
+                <ExpenseDocumentCard
+                  key={exp._id}
+                  expense={exp}
+                  variant="purchase"
+                  index={idx}
+                  canDelete={canAddPurchaseExp}
+                  onViewDocument={openDocumentViewer}
+                  onDelete={handleDeletePurchaseExpense}
+                />
+              ))}
+            </div>
+          )}
+        </DashboardSection>
+
+        <DashboardSection
+          title="Repair Costs"
+          subtitle={`${(car.repairCosts || []).length} records · ${fmt(repairExpTotal)} total`}
+          headerClass="bg-gradient-to-r from-amber-500 to-orange-500 [&_h3]:!text-white [&_p]:!text-amber-100"
+          className="max-h-[460px] flex flex-col"
+          scrollable
+          badge={
+            canAddRepairExp && car.status !== 'sold' ? (
+              <Button
+                variant="surface"
+                size="sm"
+                leftIcon={<Plus size={14} />}
+                onClick={() => setShowRepairExpForm(true)}
+                className="!bg-white/20 !text-white !shadow-none hover:!bg-white/30 !text-xs !h-8 !px-3 !border-0"
+              >
+                Log Cost
+              </Button>
+            ) : null
+          }
+        >
+          {(car.repairCosts || []).length === 0 ? (
+            <EmptyState icon={Wrench} title="No repair costs" subtitle="Log parts, labour & workshop expenses" />
+          ) : (
+            <div className="space-y-2">
+              {(car.repairCosts || []).map((exp, idx) => (
+                <ExpenseDocumentCard
+                  key={exp._id}
+                  expense={exp}
+                  variant="repair"
+                  index={idx}
+                  canDelete={canAddRepairExp}
+                  onViewDocument={openDocumentViewer}
+                  onDelete={handleDeleteRepairCost}
+                />
+              ))}
+            </div>
+          )}
+        </DashboardSection>
+      </div>
+
+      {/* Cost breakdown bar */}
+      <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <Target size={16} className="text-violet-500" />
+              Investment Breakdown
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">How total cost is calculated</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-semibold text-slate-400 uppercase">Net Cost</p>
+            <p className="text-xl sm:text-2xl font-black text-slate-900">{fmt(totalCost)}</p>
+          </div>
+        </div>
+        <div className="flex h-3 rounded-full overflow-hidden bg-slate-100">
+          <div
+            className="bg-blue-500 transition-all"
+            style={{ width: `${totalCost ? (car.purchasePrice / totalCost) * 100 : 33}%` }}
+            title={`Purchase: ${fmt(car.purchasePrice)}`}
+          />
+          <div
+            className="bg-sky-400 transition-all"
+            style={{ width: `${totalCost ? (purchaseExpTotal / totalCost) * 100 : 0}%` }}
+            title={`Expense: ${fmt(purchaseExpTotal)}`}
+          />
+          <div
+            className="bg-amber-500 transition-all"
+            style={{ width: `${totalCost ? (repairExpTotal / totalCost) * 100 : 0}%` }}
+            title={`Repair: ${fmt(repairExpTotal)}`}
+          />
+        </div>
+        <div className="flex flex-wrap gap-4 mt-3">
+          {[
+            { color: 'bg-blue-500', label: 'Purchase', value: fmt(car.purchasePrice) },
+            { color: 'bg-sky-400', label: 'Expense', value: fmt(purchaseExpTotal) },
+            { color: 'bg-amber-500', label: 'Repair', value: fmt(repairExpTotal) },
+          ].map((item) => (
+            <div key={item.label} className="flex items-center gap-2 text-xs">
+              <span className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
+              <span className="text-slate-500 font-medium">{item.label}</span>
+              <span className="font-bold text-slate-800">{item.value}</span>
+            </div>
+          ))}
+          {car.status === 'sold' && profit !== null && (
+            <div className={`ml-auto flex items-center gap-2 text-xs font-bold ${isProfit ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {isProfit ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+              {isProfit ? 'Profit' : 'Loss'}: {fmt(Math.abs(profit))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Mobile FAB */}
       {car.status !== 'sold' && !isSalePending && (canSell || canAdvanceStatus) && (
-        <div className="fixed bottom-4 left-4 right-4 md:hidden z-50">
-          <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl p-3 flex gap-3">
+        <div className="fixed bottom-4 left-4 right-4 lg:hidden z-50 safe-area-pb">
+          <div className="bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-2xl shadow-slate-900/10 p-2 flex gap-2">
             {canSell && (
-              <Button onClick={() => setShowSellForm(true)} className="flex-1 py-4 bg-emerald-600 text-white font-black rounded-2xl">
-                Sell Vehicle
+              <Button
+                onClick={() => setShowSellForm(true)}
+                className="flex-1 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold rounded-xl text-sm shadow-lg shadow-emerald-500/25"
+                leftIcon={<DollarSign size={16} />}
+              >
+                Sell
               </Button>
             )}
             {canAdvanceStatus && (
-              <Button onClick={handleStatusAdvance} className="flex-1 py-4 bg-slate-900 text-white font-black rounded-2xl">
+              <Button
+                onClick={handleStatusAdvance}
+                className="flex-1 py-3.5 bg-gradient-to-r from-slate-800 to-slate-900 text-white font-bold rounded-xl text-sm"
+                rightIcon={<ChevronRight size={16} />}
+              >
                 {NEXT_LABEL[car.status]}
               </Button>
             )}
@@ -379,11 +589,17 @@ export default function CarDetailsPage() {
         </div>
       )}
 
-      {/* Modals */}
+      <DocumentViewerModal
+        isOpen={!!viewerDoc}
+        onClose={() => setViewerDoc(null)}
+        documentPath={viewerDoc?.billImage}
+        expense={viewerDoc?.expense}
+      />
       <ExpenseForm isOpen={showPurchaseExpForm} onClose={() => setShowPurchaseExpForm(false)} carId={car._id} type="purchase" />
       <ExpenseForm isOpen={showRepairExpForm} onClose={() => setShowRepairExpForm(false)} carId={car._id} type="repair" />
       <SellCarForm isOpen={showSellForm} onClose={() => setShowSellForm(false)} car={car} />
       <MarkReadyForm isOpen={showMarkReadyForm} onClose={() => setShowMarkReadyForm(false)} car={car} />
-    </div>
+      <MoveToRepairModal isOpen={showMoveToRepairModal} onClose={() => setShowMoveToRepairModal(false)} car={car} />
+    </DashboardPage>
   );
 }

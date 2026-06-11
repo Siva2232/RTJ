@@ -1,19 +1,23 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Plus, Car, ShoppingCart, Receipt, TrendingUp, 
-  Bell, ChevronRight, Wallet, History 
+import { AnimatePresence } from 'framer-motion';
+import {
+  Plus, Car, ShoppingCart, TrendingUp,
+  Bell, ChevronRight, Wallet,
 } from 'lucide-react';
-import { selectAllCars, calcTotalCost, fetchCars } from '../store/slices/carSlice';
-import { fetchNotifications, markRead, markAllAsRead } from '../store/slices/notificationSlice';
+import { selectAllCars, aggregatePurchaseStatsByUser } from '../store/slices/carSlice';
+import { PurchaseTeamPanel } from '../components/dashboard/TeamPerformancePanel';
+import { markRead, markAllAsRead } from '../store/slices/notificationSlice';
 import CarForm from '../components/car/CarForm';
 import ExpenseForm from '../components/car/ExpenseForm';
 import NotificationBanner from '../components/ui/NotificationBanner';
 import { StatusBadge } from '../components/ui/Badge';
 import Button from '../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
-import { getImageUrl } from '../utils/helper';
+import {
+  DashboardPage, DashboardBanner, BannerStatGrid,
+  DashboardSection, CarThumb, VehicleGridCard, EmptyState,
+} from '../components/dashboard/DashboardUI';
 
 export default function PurchaseDashboard() {
   const { user } = useSelector((s) => s.auth);
@@ -24,13 +28,6 @@ export default function PurchaseDashboard() {
 
   const [showCarForm, setShowCarForm] = useState(false);
   const [expenseTarget, setExpenseTarget] = useState(null);
-
-  useEffect(() => {
-    dispatch(fetchCars());
-    dispatch(fetchNotifications());
-    const interval = setInterval(() => dispatch(fetchNotifications()), 30000);
-    return () => clearInterval(interval);
-  }, [dispatch]);
 
   const myCars = useMemo(() => {
     return allCars.filter((c) => {
@@ -43,60 +40,74 @@ export default function PurchaseDashboard() {
     (n) => !n.isRead && n.type === 'purchase_sold_success'
   );
 
-  const stats = useMemo(() => {
+  const teamPurchaseStats = useMemo(() => aggregatePurchaseStatsByUser(allCars), [allCars]);
+  const myPurchaseCount = myCars.length;
+
+  const myPurchaseStats = useMemo(() => {
+    const id = String(user?._id || user?.id);
+    const found = teamPurchaseStats.find((s) => String(s.id) === id);
+    if (found) return found;
+    return {
+      id,
+      name: user?.name || 'You',
+      role: user?.role || 'purchase',
+      total: myCars.length,
+      active: myCars.filter((c) => c.status !== 'sold').length,
+      sold: myCars.filter((c) => c.status === 'sold').length,
+      investment: myCars.reduce((s, c) => s + (c.purchasePrice || 0), 0),
+    };
+  }, [teamPurchaseStats, user, myCars]);
+
+  const bannerStats = useMemo(() => {
     const totalInv = myCars.reduce((s, c) => s + (c.purchasePrice || 0), 0);
-    const totalExp = myCars.reduce((s, c) => 
+    const totalExp = myCars.reduce((s, c) =>
       s + (c.purchaseExpenses || []).reduce((a, e) => a + (e.amount || 0), 0), 0
     );
-    const inPipeline = myCars.filter(c => c.status !== 'sold').length;
-    
+    const inPipeline = myCars.filter((c) => c.status !== 'sold').length;
+    const soldRate = myCars.length > 0
+      ? `${((myCars.filter((c) => c.status === 'sold').length / myCars.length) * 100).toFixed(0)}%`
+      : '0%';
+
     return [
-      { label: 'Active Pipeline', value: inPipeline, sub: 'Units in stock', icon: Car, color: 'text-blue-600', bg: 'bg-blue-50' },
-      { label: 'Sourcing Value', value: `₹${(totalInv / 100000).toFixed(2)}L`, sub: 'Direct investment', icon: Wallet, color: 'text-amber-600', bg: 'bg-amber-50' },
-      { label: 'Procurement Exp', value: `₹${(totalExp / 1000).toFixed(1)}K`, sub: 'Transport & Fees', icon: Receipt, color: 'text-violet-600', bg: 'bg-violet-50' },
-      { label: 'Success Rate', value: `${myCars.length > 0 ? ((myCars.filter(c => c.status === 'sold').length / myCars.length) * 100).toFixed(0) : 0}%`, sub: 'Inventory turn', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+      { label: 'My Purchases', value: myPurchaseCount, icon: Car, gradient: 'from-sky-300 to-blue-400' },
+      { label: 'Pipeline', value: inPipeline, icon: ShoppingCart, gradient: 'from-indigo-300 to-blue-400' },
+      { label: 'Investment', value: `₹${(totalInv / 100000).toFixed(1)}L`, icon: Wallet, gradient: 'from-amber-300 to-orange-400' },
+      { label: 'Sold Rate', value: soldRate, icon: TrendingUp, gradient: 'from-emerald-300 to-teal-400' },
     ];
-  }, [myCars]);
+  }, [myCars, myPurchaseCount]);
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8 bg-slate-50/50 min-h-screen">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h2 className="text-slate-900 text-2xl md:text-3xl font-black tracking-tight">Purchase Hub</h2>
-          <p className="text-slate-500 font-medium text-sm md:text-base">
-            Tracking sourcing performance for <span className="text-slate-900">{user?.name}</span>
-          </p>
-        </div>
-        <Button
-          variant="primary"
-          className="rounded-2xl shadow-lg shadow-blue-900/10 h-11 md:h-12 px-5 md:px-6 w-full sm:w-auto"
-          leftIcon={<Plus size={18} />}
-          onClick={() => setShowCarForm(true)}
-        >
-          Add New Vehicle
-        </Button>
-      </div>
+    <DashboardPage>
+      <DashboardBanner
+        eyebrow="Purchase Team"
+        title="Purchase Hub"
+        description={`Purchase portfolio for ${user?.name || 'your account'}`}
+        gradient="from-amber-600 via-orange-600 to-rose-600"
+        shadow="shadow-orange-500/15"
+        action={
+          <Button
+            variant="surface"
+            className="rounded-xl text-orange-600 hover:bg-orange-50 h-10 px-5 w-full sm:w-auto font-semibold shrink-0"
+            leftIcon={<Plus size={18} className="text-orange-600" />}
+            onClick={() => setShowCarForm(true)}
+          >
+            Add Vehicle
+          </Button>
+        }
+      >
+        <BannerStatGrid items={bannerStats} />
+      </DashboardBanner>
 
-      {/* Notifications Alert */}
       <AnimatePresence>
         {purchaseNotifications.length > 0 && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="space-y-3"
-          >
-            <div className="flex items-center justify-between px-2">
-              <div className="flex items-center gap-2 text-slate-400 text-[10px] font-black uppercase tracking-widest">
-                <Bell size={12} className="text-blue-500 animate-pulse" />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2 text-slate-500 text-xs font-medium">
+                <Bell size={14} className="text-emerald-500" />
                 Live Sales Feed
               </div>
-              <button 
-                onClick={() => dispatch(markAllAsRead())}
-                className="text-[10px] font-bold text-blue-600 hover:text-blue-700 uppercase"
-              >
-                Mark all as cleared
+              <button type="button" onClick={() => dispatch(markAllAsRead())} className="text-xs text-blue-600 hover:text-blue-700">
+                Mark all read
               </button>
             </div>
             {purchaseNotifications.slice(0, 2).map((n) => (
@@ -111,153 +122,111 @@ export default function PurchaseDashboard() {
                 onAction={n.relatedCar ? () => navigate(`/inventory/${n.relatedCar}`) : null}
               />
             ))}
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        {stats.map((s) => (
-          <div key={s.label} className="bg-white p-5 md:p-6 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden group">
-            <div className={`absolute top-0 right-0 w-24 h-24 ${s.bg} rounded-full -mr-8 -mt-8 opacity-50 group-hover:scale-110 transition-transform`} />
-            <div className="relative z-10">
-              <div className={`w-11 h-11 md:w-12 md:h-12 ${s.bg} rounded-2xl flex items-center justify-center mb-4`}>
-                <s.icon size={22} className={s.color} />
-              </div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">{s.label}</p>
-              <p className="text-slate-900 text-xl md:text-2xl font-black mt-1">{s.value}</p>
-              <p className="text-slate-400 text-[10px] font-medium mt-1 uppercase">{s.sub}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+      <PurchaseTeamPanel
+        stats={[myPurchaseStats]}
+        highlightUserId={user?._id || user?.id}
+        mode="personal"
+      />
 
-      {/* Main List */}
-      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-5 md:px-8 py-5 md:py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 md:w-10 md:h-10 bg-white rounded-xl flex items-center justify-center shadow-sm border border-slate-100">
-              <History size={18} className="text-slate-600" />
-            </div>
-            <h3 className="text-slate-900 font-black text-lg">Acquisition Log</h3>
-          </div>
-          <span className="text-xs font-bold text-slate-400 uppercase bg-white px-3 py-1.5 rounded-full border border-slate-100">
-            {myCars.length} Total Units
+      <DashboardSection
+        title="Acquisition Log"
+        subtitle="Vehicles you've sourced"
+        count={myCars.length}
+        headerClass="bg-gradient-to-r from-blue-50/80 to-indigo-50/80"
+        headerAccent="from-blue-500 to-indigo-500"
+        badge={
+          <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2.5 py-1 rounded-full">
+            {myCars.filter((c) => c.status !== 'sold').length} active
           </span>
-        </div>
-
+        }
+        className="max-h-[calc(100vh-14rem)]"
+        scrollable
+      >
         {myCars.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 md:py-24">
-             <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
-              <Car size={32} className="text-slate-200" />
-            </div>
-            <p className="text-slate-900 font-bold">No active purchases</p>
-            <p className="text-slate-400 text-sm">Start by adding a vehicle to your portfolio.</p>
-          </div>
+          <EmptyState
+            icon={Car}
+            title="No purchases yet"
+            subtitle="Add your first vehicle to start tracking acquisitions."
+            action={
+              <Button variant="primary" className="rounded-xl" leftIcon={<Plus size={16} />} onClick={() => setShowCarForm(true)}>
+                Add Vehicle
+              </Button>
+            }
+          />
         ) : (
-          <div className="divide-y divide-slate-50">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {myCars.map((car) => {
               const pe = (car.purchaseExpenses || []).reduce((s, e) => s + (e.amount || 0), 0);
               return (
-                <div 
-                  key={car._id} 
-                  className="group flex flex-col md:flex-row md:items-center gap-5 md:gap-6 px-5 md:px-8 py-5 hover:bg-blue-50/30 transition-all"
-                >
-                  {/* Vehicle Thumbnail */}
-                  <div 
-                    className="w-24 h-16 rounded-xl bg-slate-100 overflow-hidden flex-shrink-0 border border-slate-200 shadow-sm cursor-pointer"
-                    onClick={() => navigate(`/inventory/${car._id}`)}
-                  >
-                    {(car.images?.[0] || car.repairImages?.[0]) ? (
-                      <img 
-                        src={getImageUrl(car.images?.[0] || car.repairImages?.[0])} 
-                        alt="" 
-                        className="w-full h-full object-cover" 
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Car size={20} className="text-slate-300" />
+                <VehicleGridCard key={car._id}>
+                  <button type="button" className="w-full text-left" onClick={() => navigate(`/inventory/${car._id}`)}>
+                    <div className="relative">
+                      <CarThumb car={car} className="h-36" />
+                      <div className="absolute top-2.5 left-2.5">
+                        <StatusBadge status={car.status} />
                       </div>
-                    )}
-                  </div>
-
-                  {/* Details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-slate-900 font-black truncate">{car.brand} <span className="font-medium text-slate-500">{car.model}</span></p>
-                      <StatusBadge status={car.status} className="scale-75 origin-left" />
+                      {car.status === 'sold' && (
+                        <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-emerald-500/90 text-white text-[10px] font-bold px-2 py-1 rounded-lg">
+                          <ShoppingCart size={10} />
+                          ₹{(car.sellingPrice / 100000).toFixed(2)}L
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-[11px] font-bold text-slate-400 uppercase tracking-tight">
-                      <span>{car.registrationNumber}</span>
-                      <span className="w-1 h-1 bg-slate-200 rounded-full" />
-                      <span>{car.ownerType} Owner</span>
+                  </button>
+                  <div className="p-3 border-t border-slate-100 space-y-3">
+                    <div>
+                      <p className="text-slate-900 font-semibold text-sm truncate">{car.brand} {car.model}</p>
+                      <p className="text-slate-500 text-[11px] mt-0.5 truncate">{car.registrationNumber} · {car.ownerType} Owner</p>
                       {car.paymentMode && (
-                        <>
-                          <span className="w-1 h-1 bg-slate-200 rounded-full" />
-                          <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded uppercase tracking-widest">{car.paymentMode}</span>
-                        </>
-                      )}
-                      {car.utrNumber && (
-                        <>
-                          <span className="w-1 h-1 bg-slate-200 rounded-full" />
-                          <span className="text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded tracking-widest">UTR: {car.utrNumber}</span>
-                        </>
+                        <span className="inline-block mt-1.5 text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md uppercase">
+                          {car.paymentMode}
+                        </span>
                       )}
                     </div>
-                    {car.status === 'sold' && (
-                      <div className="inline-flex items-center gap-1.5 mt-2 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-black uppercase">
-                        <ShoppingCart size={10} /> Sold for ₹{(car.sellingPrice / 100000).toFixed(2)}L
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-50">
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-medium uppercase">Buy</p>
+                        <p className="text-slate-900 font-bold text-sm">₹{(car.purchasePrice / 100000).toFixed(2)}L</p>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Financials */}
-                  <div className="flex flex-row md:flex-col items-center justify-between md:justify-start gap-4 md:gap-12 w-full md:w-auto">
-                    <div className="text-left md:text-right">
-                      <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest leading-none mb-1">Buy Price</p>
-                      <p className="text-slate-900 font-black text-sm">₹{(car.purchasePrice / 100000).toFixed(2)}L</p>
+                      <div className="text-right">
+                        <p className="text-[10px] text-slate-400 font-medium uppercase">Procurement</p>
+                        <p className="text-blue-600 font-bold text-sm">+₹{(pe / 1000).toFixed(1)}K</p>
+                      </div>
                     </div>
-                    <div className="text-left md:text-right hidden sm:block">
-                      <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest leading-none mb-1">Procurement</p>
-                      <p className="text-blue-600 font-black text-sm">+₹{(pe / 1000).toFixed(1)}K</p>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 ml-auto mt-3 md:mt-0">
-                    {car.status !== 'sold' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-9 px-4 rounded-xl text-xs font-black border-slate-200 hover:border-blue-200"
-                        leftIcon={<Plus size={14} />}
-                        onClick={() => setExpenseTarget(car._id)}
+                    <div className="flex gap-2">
+                      {car.status !== 'sold' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 rounded-lg text-xs font-semibold border-blue-200 text-blue-700 hover:bg-blue-50 h-8"
+                          leftIcon={<Plus size={13} />}
+                          onClick={() => setExpenseTarget(car._id)}
+                        >
+                          Expense
+                        </Button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/inventory/${car._id}`)}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors shrink-0"
                       >
-                        EXPENSE
-                      </Button>
-                    )}
-                    <button 
-                      onClick={() => navigate(`/inventory/${car._id}`)}
-                      className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm"
-                    >
-                      <ChevronRight size={18} />
-                    </button>
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </VehicleGridCard>
               );
             })}
           </div>
         )}
-      </div>
+      </DashboardSection>
 
-      {/* Modals */}
       <CarForm isOpen={showCarForm} onClose={() => setShowCarForm(false)} />
-      <ExpenseForm
-        isOpen={!!expenseTarget}
-        onClose={() => setExpenseTarget(null)}
-        carId={expenseTarget}
-        type="purchase"
-      />
-    </div>
+      <ExpenseForm isOpen={!!expenseTarget} onClose={() => setExpenseTarget(null)} carId={expenseTarget} type="purchase" />
+    </DashboardPage>
   );
 }

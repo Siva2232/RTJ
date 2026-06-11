@@ -12,6 +12,7 @@ import SalesDashboard from "./pages/SalesDashboard";
 import Inventory from "./pages/Inventory";
 import CarDetailsPage from "./pages/CarDetailsPage";
 import Reports from "./pages/Reports";
+import ProfilePage from "./pages/ProfilePage";
 
 const ROLE_HOME = { admin: "/admin", purchase: "/purchase", sales: "/sales" };
 
@@ -24,39 +25,31 @@ function RoleRedirect() {
 export default function App() {
   return (
     <Routes>
-      {/* Public */}
       <Route path="/login" element={<Login />} />
 
-      {/* Role-based dashboards */}
-      <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
-        <Route element={<DashboardLayout />}>
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/team" element={<TeamManagement />} />
-          <Route path="/reports" element={<Reports />} />
-        </Route>
-      </Route>
-
-      <Route element={<ProtectedRoute allowedRoles={["purchase", "admin"]} />}>
-        <Route element={<DashboardLayout />}>
-          <Route path="/purchase" element={<PurchaseDashboard />} />
-        </Route>
-      </Route>
-
-      <Route element={<ProtectedRoute allowedRoles={["sales", "admin"]} />}>
-        <Route element={<DashboardLayout />}>
-          <Route path="/sales" element={<SalesDashboard />} />
-        </Route>
-      </Route>
-
-      {/* Inventory — all roles */}
+      {/* Single layout — sidebar/navbar stay mounted across all pages */}
       <Route element={<ProtectedRoute allowedRoles={["admin", "purchase", "sales"]} />}>
         <Route element={<DashboardLayout />}>
+          <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/team" element={<TeamManagement />} />
+            <Route path="/reports" element={<Reports />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={["purchase", "admin"]} />}>
+            <Route path="/purchase" element={<PurchaseDashboard />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={["sales", "admin"]} />}>
+            <Route path="/sales" element={<SalesDashboard />} />
+          </Route>
+
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/inventory/:id" element={<CarDetailsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
         </Route>
       </Route>
 
-      {/* Default redirect */}
       <Route path="/" element={<RoleRedirect />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
