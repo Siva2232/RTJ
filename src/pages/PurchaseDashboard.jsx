@@ -41,7 +41,9 @@ export default function PurchaseDashboard() {
   );
 
   const teamPurchaseStats = useMemo(() => aggregatePurchaseStatsByUser(allCars), [allCars]);
-  const myPurchaseCount = myCars.length;
+  const isAdmin = user?.role === 'admin';
+
+  const displayCars = useMemo(() => (isAdmin ? allCars : myCars), [isAdmin, allCars, myCars]);
 
   const myPurchaseStats = useMemo(() => {
     const id = String(user?._id || user?.id);
@@ -59,29 +61,32 @@ export default function PurchaseDashboard() {
   }, [teamPurchaseStats, user, myCars]);
 
   const bannerStats = useMemo(() => {
-    const totalInv = myCars.reduce((s, c) => s + (c.purchasePrice || 0), 0);
-    const totalExp = myCars.reduce((s, c) =>
-      s + (c.purchaseExpenses || []).reduce((a, e) => a + (e.amount || 0), 0), 0
-    );
-    const inPipeline = myCars.filter((c) => c.status !== 'sold').length;
-    const soldRate = myCars.length > 0
-      ? `${((myCars.filter((c) => c.status === 'sold').length / myCars.length) * 100).toFixed(0)}%`
+    const cars = displayCars;
+    const totalInv = cars.reduce((s, c) => s + (c.purchasePrice || 0), 0);
+    const inPipeline = cars.filter((c) => c.status !== 'sold').length;
+    const soldRate = cars.length > 0
+      ? `${((cars.filter((c) => c.status === 'sold').length / cars.length) * 100).toFixed(0)}%`
       : '0%';
 
     return [
-      { label: 'My Purchases', value: myPurchaseCount, icon: Car, gradient: 'from-sky-300 to-blue-400' },
+      {
+        label: isAdmin ? 'Total Purchases' : 'My Purchases',
+        value: cars.length,
+        icon: Car,
+        gradient: 'from-sky-300 to-blue-400',
+      },
       { label: 'Pipeline', value: inPipeline, icon: ShoppingCart, gradient: 'from-indigo-300 to-blue-400' },
       { label: 'Investment', value: `₹${(totalInv / 100000).toFixed(1)}L`, icon: Wallet, gradient: 'from-amber-300 to-orange-400' },
       { label: 'Sold Rate', value: soldRate, icon: TrendingUp, gradient: 'from-emerald-300 to-teal-400' },
     ];
-  }, [myCars, myPurchaseCount]);
+  }, [displayCars, isAdmin]);
 
   return (
     <DashboardPage>
       <DashboardBanner
         eyebrow="Purchase Team"
         title="Purchase Hub"
-        description={`Purchase portfolio for ${user?.name || 'your account'}`}
+        description={isAdmin ? 'Full purchase team overview — all sourced vehicles' : `Purchase portfolio for ${user?.name || 'your account'}`}
         gradient="from-amber-600 via-orange-600 to-rose-600"
         shadow="shadow-orange-500/15"
         action={
@@ -127,30 +132,30 @@ export default function PurchaseDashboard() {
       </AnimatePresence>
 
       <PurchaseTeamPanel
-        stats={[myPurchaseStats]}
-        highlightUserId={user?._id || user?.id}
-        mode="personal"
+        stats={isAdmin ? teamPurchaseStats : [myPurchaseStats]}
+        highlightUserId={isAdmin ? undefined : user?._id || user?.id}
+        mode={isAdmin ? 'team' : 'personal'}
       />
 
       <DashboardSection
         title="Acquisition Log"
-        subtitle="Vehicles you've sourced"
-        count={myCars.length}
+        subtitle={isAdmin ? 'All vehicles sourced by purchase team' : "Vehicles you've sourced"}
+        count={displayCars.length}
         headerClass="bg-gradient-to-r from-blue-50/80 to-indigo-50/80"
         headerAccent="from-blue-500 to-indigo-500"
         badge={
           <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2.5 py-1 rounded-full">
-            {myCars.filter((c) => c.status !== 'sold').length} active
+            {displayCars.filter((c) => c.status !== 'sold').length} active
           </span>
         }
         className="max-h-[calc(100vh-14rem)]"
         scrollable
       >
-        {myCars.length === 0 ? (
+        {displayCars.length === 0 ? (
           <EmptyState
             icon={Car}
             title="No purchases yet"
-            subtitle="Add your first vehicle to start tracking acquisitions."
+            subtitle={isAdmin ? 'No vehicles have been sourced yet.' : 'Add your first vehicle to start tracking acquisitions.'}
             action={
               <Button variant="primary" className="rounded-xl" leftIcon={<Plus size={16} />} onClick={() => setShowCarForm(true)}>
                 Add Vehicle
@@ -159,15 +164,21 @@ export default function PurchaseDashboard() {
           />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {myCars.map((car) => {
+            {displayCars.map((car) => {
               const pe = (car.purchaseExpenses || []).reduce((s, e) => s + (e.amount || 0), 0);
+              const purchaserName = car.purchasedBy?.name;
               return (
                 <VehicleGridCard key={car._id}>
                   <button type="button" className="w-full text-left" onClick={() => navigate(`/inventory/${car._id}`)}>
                     <div className="relative">
                       <CarThumb car={car} className="h-36" />
-                      <div className="absolute top-2.5 left-2.5">
+                      <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start">
                         <StatusBadge status={car.status} />
+                        {isAdmin && purchaserName && (
+                          <span className="text-[9px] font-bold bg-slate-900/75 text-white px-2 py-0.5 rounded-md truncate max-w-[120px]">
+                            {purchaserName}
+                          </span>
+                        )}
                       </div>
                       {car.status === 'sold' && (
                         <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-emerald-500/90 text-white text-[10px] font-bold px-2 py-1 rounded-lg">
